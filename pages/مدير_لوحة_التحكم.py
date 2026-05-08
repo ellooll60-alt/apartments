@@ -47,32 +47,11 @@ col2.metric("🏘️ الوحدات المتاحة", len(available_units))
 col3.metric("👥 عدد العملاء", total_clients)
 
 # ============================
-# 🔔 التنبيهات
-# ============================
-st.write("### 🔔 تنبيهات")
-
-checkout_today = [b for b in bookings if b["check_out"] == str(today)]
-recent_bookings = [
-    b for b in bookings
-    if "created_at" in b and (datetime.now() - datetime.fromisoformat(b["created_at"])).days < 1
-]
-
-if checkout_today:
-    st.warning(f"📤 {len(checkout_today)} عميل سيغادر اليوم")
-
-if recent_bookings:
-    st.success(f"🆕 {len(recent_bookings)} حجز جديد خلال آخر 24 ساعة")
-
-if not checkout_today and not recent_bookings:
-    st.info("لا توجد تنبيهات حالياً.")
-
-# ============================
 # 📅 تقويم الحجوزات (تفاعلي)
 # ============================
 st.write("### 📅 تقويم الحجوزات (تفاعلي)")
 
-calendar_events = []
-
+clean_events = []
 for b in bookings:
     if not b.get("check_in") or not b.get("check_out"):
         continue
@@ -81,13 +60,9 @@ for b in bookings:
         start = str(datetime.fromisoformat(b["check_in"]).date())
         end = str(datetime.fromisoformat(b["check_out"]).date())
     except:
-        try:
-            start = b["check_in"].split("T")[0]
-            end = b["check_out"].split("T")[0]
-        except:
-            continue
+        continue
 
-    calendar_events.append({
+    clean_events.append({
         "id": b["id"],
         "title": f"{b['client_name']} – {b['unit_no']}",
         "start": start,
@@ -95,67 +70,42 @@ for b in bookings:
         "color": "#007bff"
     })
 
-events_json = json.dumps(calendar_events)
+events_json = json.dumps(clean_events, ensure_ascii=False)
 
 calendar_html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css' rel='stylesheet' />
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.js'></script>
-
-<style>
-  #calendar {{
-    max-width: 100%;
-    margin: 20px auto;
-  }}
-</style>
-</head>
-<body>
-
 <div id='calendar'></div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {{
-    var calendarEl = document.getElementById('calendar');
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.js'></script>
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css' rel='stylesheet' />
 
-    var calendar = new FullCalendar.Calendar(calendarEl, {{
+<script>
+var eventsData = JSON.parse(`{events_json}`);
+
+document.addEventListener('DOMContentLoaded', function() {{
+    var calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {{
         initialView: 'dayGridMonth',
         locale: 'ar',
         height: 650,
         selectable: true,
-        events: {events_json},
+        events: eventsData,
 
         dateClick: function(info) {{
-            window.parent.postMessage(
-                {{ "action": "add", "date": info.dateStr }},
-                "*"
-            );
+            window.parent.postMessage({{ action: "add", date: info.dateStr }}, "*");
         }},
 
         eventClick: function(info) {{
-            window.parent.postMessage(
-                {{ "action": "edit", "id": info.event.id }},
-                "*"
-            );
+            window.parent.postMessage({{ action: "edit", id: info.event.id }}, "*");
         }}
     }});
-
     calendar.render();
 }});
 </script>
-
-</body>
-</html>
 """
 
 st.components.v1.html(calendar_html, height=700)
 
-# ============================
-# 📥 استقبال رسائل التقويم (الإصدار الجديد)
-# ============================
+# استقبال رسائل التقويم
 if "action" in st.query_params:
-
     action = st.query_params["action"]
 
     if action == "add":
@@ -182,89 +132,12 @@ if bookings:
 
     if search:
         search_lower = search.lower()
-        def match_row(row):
-            client = str(row.get("client_name", "")).lower()
-            unit_no = str(row.get("unit_no", "")).lower()
-            platform = str(row.get("platform", "")).lower()
-            return (search_lower in client) or (search_lower in unit_no) or (search_lower in platform)
+        df = df[df.apply(lambda row:
+            search_lower in str(row.get("client_name", "")).lower() or
+            search_lower in str(row.get("unit_no", "")).lower() or
+            search_lower in str(row.get("platform", "")).lower()
+        , axis=1)]
 
-        filtered_df = df[df.apply(match_row, axis=1)]
-    else:
-        filtered_df = df
-
-    cols_to_show = [c for c in [
-        "id",
-        "client_name",
-        "unit_no",
-        "platform",
-        "check_in",
-        "check_out",
-        "price",
-        "expenses",
-        "compensations",
-        "note"
-    ] if c in filtered_df.columns]
-
-    st.dataframe(filtered_df[cols_to_show], use_container_width=True)
+    st.dataframe(df, use_container_width=True)
 else:
-    st.info("لا توجد حجوزات لعرضها.")
-
-# ============================
-# 📆 Daily Monitor
-# ============================
-st.write("### 📆 المتابعة اليومية")
-
-tomorrow = today + timedelta(days=1)
-
-bookings_today = today_bookings
-bookings_tomorrow = [b for b in bookings if b["check_in"] == str(tomorrow)]
-checkout_today = [b for b in bookings if b["check_out"] == str(today)]
-checkout_tomorrow = [b for b in bookings if b["check_out"] == str(tomorrow)]
-
-colA, colB, colC, colD = st.columns(4)
-colA.metric("حجوزات اليوم", len(bookings_today))
-colB.metric("حجوزات غداً", len(bookings_tomorrow))
-colC.metric("مغادرين اليوم", len(checkout_today))
-colD.metric("مغادرين غداً", len(checkout_tomorrow))
-
-# ============================
-# 📆 Weekly Monitor
-# ============================
-st.write("### 📆 المتابعة الأسبوعية")
-
-week_start = today - timedelta(days=7)
-
-weekly_bookings = [b for b in bookings if b["check_in"] >= str(week_start)]
-weekly_checkout = [b for b in bookings if b["check_out"] >= str(week_start)]
-weekly_income = sum(float(b["price"]) for b in weekly_bookings)
-
-col1, col2, col3 = st.columns(3)
-col1.metric("حجوزات الأسبوع", len(weekly_bookings))
-col2.metric("مغادرين الأسبوع", len(weekly_checkout))
-col3.metric("الدخل الأسبوعي", f"{weekly_income:,.2f} ريال")
-
-# ============================
-# 📅 Monthly Monitor
-# ============================
-st.write("### 📆 المتابعة الشهرية")
-
-month_start = today - timedelta(days=30)
-
-monthly_bookings = [b for b in bookings if b["check_in"] >= str(month_start)]
-monthly_checkout = [b for b in bookings if b["check_out"] >= str(month_start)]
-monthly_income = sum(float(b["price"]) for b in monthly_bookings)
-
-col1, col2, col3 = st.columns(3)
-col1.metric("حجوزات الشهر", len(monthly_bookings))
-col2.metric("مغادرين الشهر", len(monthly_checkout))
-col3.metric("الدخل الشهري", f"{monthly_income:,.2f} ريال")
-
-# ============================
-# 🚀 روابط سريعة
-# ============================
-st.write("### 🚀 روابط سريعة")
-
-colA, colB, colC = st.columns(3)
-colA.page_link("pages/حجز_جديد.py", label="📝 حجز جديد")
-colB.page_link("pages/حالة_الوحدات.py", label="🏘️ حالة الوحدات")
-colC.page_link("pages/العملاء.py", label="👥 العملاء")
+    st.info("لا توجد حجوزات.")
