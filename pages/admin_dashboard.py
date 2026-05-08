@@ -167,18 +167,19 @@ document.addEventListener('DOMContentLoaded', function() {{
 
 st.components.v1.html(calendar_html, height=700)
 
-# استقبال رسائل التقويم
-msg = st.experimental_get_query_params()
+# ============================
+# 📥 استقبال رسائل التقويم (الإصدار الجديد)
+# ============================
+if "action" in st.query_params:
 
-if "action" in msg:
-    action = msg["action"][0]
+    action = st.query_params["action"]
 
     if action == "add":
-        st.session_state["new_booking_date"] = msg["date"][0]
+        st.session_state["new_booking_date"] = st.query_params["date"]
         st.switch_page("pages/حجز_جديد.py")
 
     if action == "edit":
-        st.session_state["edit_booking_id"] = msg["id"][0]
+        st.session_state["edit_booking_id"] = st.query_params["id"]
         st.switch_page("pages/تعديل_حجز.py")
 
 # ============================
