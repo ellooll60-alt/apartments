@@ -67,7 +67,7 @@ if not checkout_today and not recent_bookings:
     st.info("لا توجد تنبيهات حالياً.")
 
 # ============================
-# 📅 تقويم الحجوزات التفاعلي
+# 📅 تقويم الحجوزات (تفاعلي)
 # ============================
 st.write("### 📅 تقويم الحجوزات (تفاعلي)")
 
@@ -81,8 +81,11 @@ for b in bookings:
         start = str(datetime.fromisoformat(b["check_in"]).date())
         end = str(datetime.fromisoformat(b["check_out"]).date())
     except:
-        start = b["check_in"].split("T")[0]
-        end = b["check_out"].split("T")[0]
+        try:
+            start = b["check_in"].split("T")[0]
+            end = b["check_out"].split("T")[0]
+        except:
+            continue
 
     calendar_events.append({
         "id": b["id"],
@@ -148,26 +151,19 @@ document.addEventListener('DOMContentLoaded', function() {{
 
 st.components.v1.html(calendar_html, height=700)
 
-# ============================
-# 📥 استقبال الرسائل من التقويم
-# ============================
+# استقبال رسائل التقويم
 msg = st.experimental_get_query_params()
 
 if "action" in msg:
     action = msg["action"][0]
 
-    # إضافة حجز جديد
     if action == "add":
-        selected_date = msg["date"][0]
-        st.session_state["new_booking_date"] = selected_date
+        st.session_state["new_booking_date"] = msg["date"][0]
         st.switch_page("pages/حجز_جديد.py")
 
-    # تعديل حجز
     if action == "edit":
-        booking_id = msg["id"][0]
-        st.session_state["edit_booking_id"] = booking_id
+        st.session_state["edit_booking_id"] = msg["id"][0]
         st.switch_page("pages/تعديل_حجز.py")
-
 
 # ============================
 # 📆 Daily Monitor
