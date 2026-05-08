@@ -167,6 +167,49 @@ if "action" in st.query_params:
         st.switch_page("pages/تعديل_حجز.py")
 
 # ============================
+# 📋 جدول الحجوزات التفاعلي (قابل للبحث)
+# ============================
+st.write("### 📋 جدول الحجوزات (تفاعلي وقابل للبحث)")
+
+if bookings:
+    df = pd.DataFrame(bookings)
+
+    for col in ["check_in", "check_out", "created_at"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str)
+
+    search = st.text_input("🔍 بحث عن حجز (اسم العميل، رقم الوحدة، المنصة):", "")
+
+    if search:
+        search_lower = search.lower()
+        def match_row(row):
+            client = str(row.get("client_name", "")).lower()
+            unit_no = str(row.get("unit_no", "")).lower()
+            platform = str(row.get("platform", "")).lower()
+            return (search_lower in client) or (search_lower in unit_no) or (search_lower in platform)
+
+        filtered_df = df[df.apply(match_row, axis=1)]
+    else:
+        filtered_df = df
+
+    cols_to_show = [c for c in [
+        "id",
+        "client_name",
+        "unit_no",
+        "platform",
+        "check_in",
+        "check_out",
+        "price",
+        "expenses",
+        "compensations",
+        "note"
+    ] if c in filtered_df.columns]
+
+    st.dataframe(filtered_df[cols_to_show], use_container_width=True)
+else:
+    st.info("لا توجد حجوزات لعرضها.")
+
+# ============================
 # 📆 Daily Monitor
 # ============================
 st.write("### 📆 المتابعة اليومية")
@@ -175,6 +218,7 @@ tomorrow = today + timedelta(days=1)
 
 bookings_today = today_bookings
 bookings_tomorrow = [b for b in bookings if b["check_in"] == str(tomorrow)]
+checkout_today = [b for b in bookings if b["check_out"] == str(today)]
 checkout_tomorrow = [b for b in bookings if b["check_out"] == str(tomorrow)]
 
 colA, colB, colC, colD = st.columns(4)
