@@ -1,8 +1,8 @@
 import streamlit as st
 from supabase import create_client
 from datetime import date, datetime, timedelta
-from streamlit_calendar import calendar
 import pandas as pd
+import json
 
 # ============================
 # 🔒 حماية الصفحة للـ Admin فقط
@@ -83,19 +83,60 @@ col10.metric("🌐 عدد المنصات", total_platforms)
 col11.metric("👥 عدد الموظفين", total_users)
 
 # ============================
-# 📅 تقويم الحجوزات
+# 📅 تقويم الحجوزات (FullCalendar)
 # ============================
 st.write("### 📅 تقويم الحجوزات")
 
-events = []
-for b in bookings:
-    events.append({
+calendar_events = [
+    {
         "title": f"{b['client_name']} – {b['unit_no']}",
         "start": b["check_in"],
-        "end": b["check_out"]
-    })
+        "end": b["check_out"],
+        "color": "#007bff"
+    }
+    for b in bookings
+]
 
-calendar(events=events, options={"initialView": "dayGridMonth", "locale": "ar", "height": 650})
+events_json = json.dumps(calendar_events)
+
+calendar_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css' rel='stylesheet' />
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.js'></script>
+
+<style>
+  #calendar {{
+    max-width: 100%;
+    margin: 20px auto;
+  }}
+</style>
+</head>
+<body>
+
+<div id='calendar'></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {{
+    var calendarEl = document.getElementById('calendar');
+
+    var calendar = new FullCalendar.Calendar(calendarEl, {{
+        initialView: 'dayGridMonth',
+        locale: 'ar',
+        height: 650,
+        events: {events_json}
+    }});
+
+    calendar.render();
+}});
+</script>
+
+</body>
+</html>
+"""
+
+st.components.v1.html(calendar_html, height=700)
 
 # ============================
 # 📆 Daily Monitor
