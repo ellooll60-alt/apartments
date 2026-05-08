@@ -83,9 +83,9 @@ col10.metric("🌐 عدد المنصات", total_platforms)
 col11.metric("👥 عدد الموظفين", total_users)
 
 # ============================
-# 📅 تقويم الحجوزات (FullCalendar)
+# 📅 تقويم الحجوزات التفاعلي
 # ============================
-st.write("### 📅 تقويم الحجوزات")
+st.write("### 📅 تقويم الحجوزات (تفاعلي)")
 
 calendar_events = []
 
@@ -97,9 +97,11 @@ for b in bookings:
         start = str(datetime.fromisoformat(b["check_in"]).date())
         end = str(datetime.fromisoformat(b["check_out"]).date())
     except:
-        continue
+        start = b["check_in"].split("T")[0]
+        end = b["check_out"].split("T")[0]
 
     calendar_events.append({
+        "id": b["id"],
         "title": f"{b['client_name']} – {b['unit_no']}",
         "start": start,
         "end": end,
@@ -134,7 +136,22 @@ document.addEventListener('DOMContentLoaded', function() {{
         initialView: 'dayGridMonth',
         locale: 'ar',
         height: 650,
-        events: {events_json}
+        selectable: true,
+        events: {events_json},
+
+        dateClick: function(info) {{
+            window.parent.postMessage(
+                {{ "action": "add", "date": info.dateStr }},
+                "*"
+            );
+        }},
+
+        eventClick: function(info) {{
+            window.parent.postMessage(
+                {{ "action": "edit", "id": info.event.id }},
+                "*"
+            );
+        }}
     }});
 
     calendar.render();
@@ -146,6 +163,27 @@ document.addEventListener('DOMContentLoaded', function() {{
 """
 
 st.components.v1.html(calendar_html, height=700)
+
+# ============================
+# 📥 استقبال الرسائل من التقويم
+# ============================
+msg = st.experimental_get_query_params()
+
+if "action" in msg:
+    action = msg["action"][0]
+
+    # إضافة حجز جديد
+    if action == "add":
+        selected_date = msg["date"][0]
+        st.session_state["new_booking_date"] = selected_date
+        st.switch_page("pages/حجز_جديد.py")
+
+    # تعديل حجز
+    if action == "edit":
+        booking_id = msg["id"][0]
+        st.session_state["edit_booking_id"] = booking_id
+        st.switch_page("pages/تعديل_حجز.py")
+
 
 # ============================
 # 📆 Daily Monitor
