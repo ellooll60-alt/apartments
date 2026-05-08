@@ -87,15 +87,24 @@ col11.metric("👥 عدد الموظفين", total_users)
 # ============================
 st.write("### 📅 تقويم الحجوزات")
 
-calendar_events = [
-    {
+calendar_events = []
+
+for b in bookings:
+    if not b.get("check_in") or not b.get("check_out"):
+        continue
+
+    try:
+        start = str(datetime.fromisoformat(b["check_in"]).date())
+        end = str(datetime.fromisoformat(b["check_out"]).date())
+    except:
+        continue
+
+    calendar_events.append({
         "title": f"{b['client_name']} – {b['unit_no']}",
-        "start": b["check_in"],
-        "end": b["check_out"],
+        "start": start,
+        "end": end,
         "color": "#007bff"
-    }
-    for b in bookings
-]
+    })
 
 events_json = json.dumps(calendar_events)
 
@@ -175,7 +184,7 @@ col3.metric("الدخل الأسبوعي", f"{weekly_income:,.2f} ريال")
 # ============================
 # 📅 Monthly Monitor
 # ============================
-st.write("### 📅 المتابعة الشهرية")
+st.write("### 📆 المتابعة الشهرية")
 
 month_start = today - timedelta(days=30)
 
