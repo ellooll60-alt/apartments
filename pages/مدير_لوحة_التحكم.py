@@ -1,8 +1,9 @@
 import streamlit as st
 from supabase import create_client
 from datetime import date, datetime, timedelta
-from streamlit_calendar import calendar
 from utils.auth_utils import require_role
+import pandas as pd
+import json
 
 # ============================
 # 🔒 السماح للمدير + المدير المساعد فقط
@@ -66,19 +67,69 @@ if not checkout_today and not recent_bookings:
     st.info("لا توجد تنبيهات حالياً.")
 
 # ============================
-# 📅 تقويم الحجوزات
+# 📅 تقويم الحجوزات (FullCalendar)
 # ============================
 st.write("### 📅 تقويم الحجوزات")
 
-events = []
+calendar_events = []
+
 for b in bookings:
-    events.append({
+    if not b.get("check_in") or not b.get("check_out"):
+        continue
+
+    try:
+        start = str(datetime.fromisoformat(b["check_in"]).date())
+        end = str(datetime.fromisoformat(b["check_out"]).date())
+    except:
+        continue
+
+    calendar_events.append({
         "title": f"{b['client_name']} – {b['unit_no']}",
-        "start": b["check_in"],
-        "end": b["check_out"]
+        "start": start,
+        "end": end,
+        "color": "#007bff"
     })
 
-calendar(events=events, options={"initialView": "dayGridMonth", "locale": "ar", "height": 650})
+events_json = json.dumps(calendar_events)
+
+calendar_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css' rel='stylesheet' />
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.js'></script>
+
+<style>
+  #calendar {{
+    max-width: 100%;
+    margin: 20px auto;
+  }}
+</style>
+</head>
+<body>
+
+<div id='calendar'></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {{
+    var calendarEl = document.getElementById('calendar');
+
+    var calendar = new FullCalendar.Calendar(calendarEl, {{
+        initialView: 'dayGridMonth',
+        locale: 'ar',
+        height: 650,
+        events: {events_json}
+    }});
+
+    calendar.render();
+}});
+</script>
+
+</body>
+</html>
+"""
+
+st.components.v1.html(calendar_html, height=700)
 
 # ============================
 # 📆 Daily Monitor
@@ -116,7 +167,7 @@ col3.metric("الدخل الأسبوعي", f"{weekly_income:,.2f} ريال")
 # ============================
 # 📅 Monthly Monitor
 # ============================
-st.write("### 📅 المتابعة الشهرية")
+st.write("### 📆 المتابعة الشهرية")
 
 month_start = today - timedelta(days=30)
 
