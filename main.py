@@ -35,22 +35,34 @@ if not st.session_state.logged_in:
 
     if st.button("تسجيل الدخول"):
 
-        # 🔥 أهم تعديل هنا
-        result = (
-            supabase.table("users")
-            .select("*")
-            .eq("username", username)
-            .limit(1)
-            .execute()
-        )
+        # ============================
+        # 🔥 أهم تعديل يمنع APIError
+        # ============================
+        try:
+            result = (
+                supabase.table("users")
+                .select("id, username, password, role")
+                .eq("username", username)
+                .limit(1)
+                .execute()
+            )
+        except Exception as e:
+            st.error("⚠️ خطأ في الاتصال بقاعدة البيانات")
+            st.stop()
 
-        if not result.data:
+        # ============================
+        # ❗ منع انهيار الكود لو النتيجة فاضية
+        # ============================
+        if not result.data or len(result.data) == 0:
             st.error("❌ اسم المستخدم غير موجود")
             st.stop()
 
         user = result.data[0]
 
-        if user["password"] != password:
+        # ============================
+        # ❗ التحقق من كلمة المرور
+        # ============================
+        if user.get("password") != password:
             st.error("❌ كلمة المرور غير صحيحة")
             st.stop()
 
