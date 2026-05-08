@@ -35,37 +35,47 @@ if not st.session_state.logged_in:
 
     if st.button("تسجيل الدخول"):
 
-        result = supabase.table("users").select("*").eq("username", username).execute()
+        # 🔥 أهم تعديل هنا
+        result = (
+            supabase.table("users")
+            .select("*")
+            .eq("username", username)
+            .limit(1)
+            .execute()
+        )
 
         if not result.data:
             st.error("❌ اسم المستخدم غير موجود")
-        else:
-            user = result.data[0]
+            st.stop()
 
-            if user["password"] == password:
+        user = result.data[0]
 
-                st.session_state.logged_in = True
-                st.session_state.username = username
-                st.session_state.user_role = user["role"]
+        if user["password"] != password:
+            st.error("❌ كلمة المرور غير صحيحة")
+            st.stop()
 
-                st.success("✔ تم تسجيل الدخول بنجاح")
+        # ============================
+        # ✔ تسجيل الدخول
+        # ============================
+        st.session_state.logged_in = True
+        st.session_state.username = username
+        st.session_state.user_role = user["role"]
 
-                # ============================
-                # 🔀 التوجيه حسب الدور
-                # ============================
-                if user["role"] == "admin":
-                    st.switch_page("pages/admin_dashboard.py")
+        st.success("✔ تم تسجيل الدخول بنجاح")
 
-                elif user["role"] == "manager":
-                    st.switch_page("pages/مدير_لوحة_التحكم.py")
+        # ============================
+        # 🔀 التوجيه حسب الدور
+        # ============================
+        if user["role"] == "admin":
+            st.switch_page("pages/admin_dashboard.py")
 
-                elif user["role"] == "employee":
-                    st.switch_page("pages/موظف_لوحة_التحكم.py")
+        elif user["role"] == "manager":
+            st.switch_page("pages/مدير_لوحة_التحكم.py")
 
-                st.rerun()
+        elif user["role"] == "employee":
+            st.switch_page("pages/موظف_لوحة_التحكم.py")
 
-            else:
-                st.error("❌ كلمة المرور غير صحيحة")
+        st.rerun()
 
     st.stop()
 
