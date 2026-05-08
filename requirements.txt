@@ -6,3 +6,5 @@ fpdf==1.7.2
 pillow
 python-dotenv
 streamlit-calendar
+qrcode[pil]
+reportlab
