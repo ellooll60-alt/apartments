@@ -65,3 +65,45 @@
 
 ## 🏗️ هيكلة المشروع
 
+project/
+│── main.py
+│── requirements.txt
+│── README.md
+│
+├── utils/
+│   ├── auth_utils.py
+│   ├── db_utils.py
+│   └── helpers.py
+│
+├── pages/
+│   ├── admin_dashboard.py
+│   ├── manager_dashboard.py
+│   ├── employee_dashboard.py
+│   ├── حجزجديد.py
+│   ├── تعديلحجز.py
+│   ├── حالة_الوحدات.py
+│   ├── العملاء.py
+│   └── المنصات.py
+│
+└── assets/
+└── logo.png
+
+---
+
+## ⚙️ الإعداد والتشغيل
+
+### 1️⃣ تثبيت المتطلبات
+
+---
+
+# 🎉 جاهز للنشر على GitHub  
+هذا README يغطي كل شيء في مشروعك بشكل احترافي.
+
+لو تبغى:
+
+- إضافة صور Screenshots  
+- إضافة شارة Status  
+- إضافة قسم API Documentation  
+- إضافة فيديو توضيحي  
+
+قل لي وأنا أضيفها لك فورًا.
