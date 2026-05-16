@@ -20,9 +20,11 @@ from bidi.algorithm import get_display
 from utils.auth_utils import require_role
 
 # ============================
-# 🔐 دالة تجهيز النص العربي
+# 🔐 دالة تجهيز النص العربي (مع إصلاح المستطيل الأبيض)
 # ============================
 def ar(text: str) -> str:
+    # إضافة ZERO WIDTH NON-JOINER لمنع ظهور مربعات في أول وآخر الحروف
+    text = f"\u200C{text}\u200C"
     reshaped = arabic_reshaper.reshape(text)
     bidi_text = get_display(reshaped)
     return bidi_text
@@ -124,7 +126,7 @@ def generate_pdf():
 
     width, height = A4
     y = height - 40
-    RIGHT_MARGIN = 80  # ← زيادة الهامش لمنع قص الحروف
+    RIGHT_MARGIN = 80  # هامش أكبر لمنع قص الحروف
 
     # عنوان الشركة
     c.setFont("Arabic", 22)
@@ -167,7 +169,7 @@ def generate_pdf():
     rows = [
         ("سعر الأساس", f"{base_price} ريال"),
         ("الخصم", f"{discount_value} ريال"),
-        (f"الضريبة {VAT_percent}%", f"{vat_value} ريال"),
+        (f"الضريبة ({VAT_percent}%)", f"{vat_value} ريال"),
         ("التأمين", f"{deposit} ريال"),
     ]
 
