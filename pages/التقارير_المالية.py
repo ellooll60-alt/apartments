@@ -27,15 +27,15 @@ bookings = get_bookings()
 expenses = get_expenses()
 compensations = get_compensations()
 
+df_bookings = pd.DataFrame(bookings)
+df_expenses = pd.DataFrame(expenses)
+df_comp = pd.DataFrame(compensations)
+
 # -----------------------------
 # 🧮 حساب الدخل
 # -----------------------------
 total_income_bookings = sum(float(b["total_price"]) for b in bookings)
-
-# ✔ التعويضات تُحسب كدخل
 total_compensations = sum(float(c["amount"]) for c in compensations)
-
-# ✔ إجمالي الدخل = دخل الحجوزات + التعويضات
 total_income = total_income_bookings + total_compensations
 
 # -----------------------------
@@ -47,6 +47,22 @@ total_expenses = sum(float(e["amount"]) for e in expenses)
 # 🧮 صافي الربح
 # -----------------------------
 net_profit = total_income - total_expenses
+
+# -----------------------------
+# 🌐 الدخل حسب المنصة
+# -----------------------------
+if "platform" in df_bookings.columns:
+    income_per_platform = df_bookings.groupby("platform")["total_price"].sum().reset_index()
+else:
+    income_per_platform = pd.DataFrame(columns=["platform", "total_price"])
+
+# -----------------------------
+# 🏠 الدخل حسب الوحدة
+# -----------------------------
+if "unit_no" in df_bookings.columns:
+    income_per_unit = df_bookings.groupby("unit_no")["total_price"].sum().reset_index()
+else:
+    income_per_unit = pd.DataFrame(columns=["unit_no", "total_price"])
 
 # -----------------------------
 # 📌 عرض الملخص
@@ -61,6 +77,18 @@ col3.metric("📉 المصاريف", f"{total_expenses} ريال")
 col4.metric("📈 صافي الربح", f"{net_profit} ريال")
 
 # -----------------------------
+# 🌐 الدخل حسب المنصة
+# -----------------------------
+st.subheader("🌐 الدخل حسب المنصة")
+st.dataframe(income_per_platform)
+
+# -----------------------------
+# 🏠 الدخل حسب الوحدة
+# -----------------------------
+st.subheader("🏠 الدخل حسب الوحدة")
+st.dataframe(income_per_unit)
+
+# -----------------------------
 # 📅 التقارير حسب التاريخ
 # -----------------------------
 st.subheader("📅 التقارير حسب التاريخ")
@@ -68,15 +96,12 @@ st.subheader("📅 التقارير حسب التاريخ")
 selected_date = st.date_input("اختر التاريخ", datetime.today())
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-# دخل الحجوزات في اليوم
 daily_bookings = [b for b in bookings if b["date_added"].startswith(selected_date_str)]
 daily_income = sum(float(b["total_price"]) for b in daily_bookings)
 
-# ✔ تعويضات اليوم
 daily_comp = [c for c in compensations if c["date"].startswith(selected_date_str)]
 daily_comp_total = sum(float(c["amount"]) for c in daily_comp)
 
-# مصاريف اليوم
 daily_exp = [e for e in expenses if e["date"].startswith(selected_date_str)]
 daily_exp_total = sum(float(e["amount"]) for e in daily_exp)
 
@@ -89,23 +114,9 @@ colC.metric("مصاريف اليوم", f"{daily_exp_total} ريال")
 colD.metric("صافي اليوم", f"{daily_net} ريال")
 
 # -----------------------------
-# 📋 جدول التعويضات داخل التقارير
-# -----------------------------
-st.subheader("📋 تقرير التعويضات")
-
-if compensations:
-    df_comp = pd.DataFrame(compensations)
-    df_comp = df_comp[["id", "booking_id", "reason", "amount", "date"]]
-    st.dataframe(df_comp)
-else:
-    st.info("لا توجد تعويضات مسجلة.")
-
-# -----------------------------
 # 🖨 إنشاء PDF
 # -----------------------------
-def generate_pdf(total_income_bookings, total_compensations, total_expenses, net_profit,
-                 daily_income, daily_comp_total, daily_exp_total, daily_net, compensations):
-
+def generate_pdf():
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     c = canvas.Canvas(temp_file.name, pagesize=A4)
 
@@ -126,32 +137,26 @@ def generate_pdf(total_income_bookings, total_compensations, total_expenses, net
     c.drawString(30, y, f"📈 صافي الربح: {net_profit} ريال")
     y -= 40
 
+    # دخل المنصات
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(30, y, "📅 تقرير اليوم")
-    y -= 30
+    c.drawString(30, y, "🌐 الدخل حسب المنصة")
+    y -= 25
 
-    c.setFont("Helvetica", 12)
-    c.drawString(30, y, f"دخل اليوم: {daily_income} ريال")
-    y -= 20
-    c.drawString(30, y, f"تعويضات اليوم: {daily_comp_total} ريال")
-    y -= 20
-    c.drawString(30, y, f"مصاريف اليوم: {daily_exp_total} ريال")
-    y -= 20
-    c.drawString(30, y, f"صافي اليوم: {daily_net} ريال")
-    y -= 40
+    c.setFont("Helvetica", 11)
+    for _, row in income_per_platform.iterrows():
+        c.drawString(40, y, f"{row['platform']}: {row['total_price']} ريال")
+        y -= 18
 
+    y -= 20
+
+    # دخل الوحدات
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(30, y, "📋 جدول التعويضات")
-    y -= 30
+    c.drawString(30, y, "🏠 الدخل حسب الوحدة")
+    y -= 25
 
-    c.setFont("Helvetica", 10)
-    for comp in compensations:
-        if y < 50:
-            c.showPage()
-            y = height - 50
-            c.setFont("Helvetica", 10)
-
-        c.drawString(30, y, f"#{comp['id']} | حجز {comp['booking_id']} | {comp['reason']} | {comp['amount']} ريال | {comp['date']}")
+    c.setFont("Helvetica", 11)
+    for _, row in income_per_unit.iterrows():
+        c.drawString(40, y, f"وحدة {row['unit_no']}: {row['total_price']} ريال")
         y -= 18
 
     c.save()
@@ -163,18 +168,7 @@ def generate_pdf(total_income_bookings, total_compensations, total_expenses, net
 st.subheader("📄 تصدير التقرير")
 
 if st.button("📄 تصدير التقرير PDF"):
-    pdf_path = generate_pdf(
-        total_income_bookings,
-        total_compensations,
-        total_expenses,
-        net_profit,
-        daily_income,
-        daily_comp_total,
-        daily_exp_total,
-        daily_net,
-        compensations
-    )
-
+    pdf_path = generate_pdf()
     with open(pdf_path, "rb") as f:
         st.download_button(
             label="⬇ تحميل التقرير PDF",
