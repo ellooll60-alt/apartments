@@ -1,5 +1,4 @@
 import streamlit as st
-from utils.auth import check_auth
 import pandas as pd
 from datetime import datetime
 from reportlab.pdfgen import canvas
@@ -8,13 +7,18 @@ import tempfile
 from supabase import create_client
 
 # -----------------------------
+# 🔐 التحقق من تسجيل الدخول
+# -----------------------------
+if "logged_in" not in st.session_state or not st.session_state.logged_in:
+    st.error("يجب تسجيل الدخول للوصول إلى هذه الصفحة.")
+    st.stop()
+
+# -----------------------------
 # 🔗 الاتصال بـ Supabase
 # -----------------------------
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
-
-check_auth()
 
 st.title("📊 التقارير المالية")
 
