@@ -44,7 +44,7 @@ total_income = total_income_bookings + total_compensations
 total_expenses = sum(float(e["amount"]) for e in expenses)
 
 # -----------------------------
-# 🧮 صافي الربح
+# 🧮 صافي الربح العام
 # -----------------------------
 net_profit = total_income - total_expenses
 
@@ -63,6 +63,21 @@ if "unit_no" in df_bookings.columns:
     income_per_unit = df_bookings.groupby("unit_no")["total_price"].sum().reset_index()
 else:
     income_per_unit = pd.DataFrame(columns=["unit_no", "total_price"])
+
+# -----------------------------
+# 💸 مصاريف الوحدة
+# -----------------------------
+if "unit_no" in df_expenses.columns:
+    expenses_per_unit = df_expenses.groupby("unit_no")["amount"].sum().reset_index()
+else:
+    expenses_per_unit = pd.DataFrame(columns=["unit_no", "amount"])
+
+# -----------------------------
+# 🧮 صافي الربح لكل وحدة
+# -----------------------------
+unit_profit = pd.merge(income_per_unit, expenses_per_unit, on="unit_no", how="left")
+unit_profit["amount"] = unit_profit["amount"].fillna(0)
+unit_profit["net_profit"] = unit_profit["total_price"] - unit_profit["amount"]
 
 # -----------------------------
 # 📌 عرض الملخص
@@ -89,29 +104,16 @@ st.subheader("🏠 الدخل حسب الوحدة")
 st.dataframe(income_per_unit)
 
 # -----------------------------
-# 📅 التقارير حسب التاريخ
+# 💸 مصاريف الوحدة
 # -----------------------------
-st.subheader("📅 التقارير حسب التاريخ")
+st.subheader("💸 مصاريف كل وحدة")
+st.dataframe(expenses_per_unit)
 
-selected_date = st.date_input("اختر التاريخ", datetime.today())
-selected_date_str = selected_date.strftime("%Y-%m-%d")
-
-daily_bookings = [b for b in bookings if b["date_added"].startswith(selected_date_str)]
-daily_income = sum(float(b["total_price"]) for b in daily_bookings)
-
-daily_comp = [c for c in compensations if c["date"].startswith(selected_date_str)]
-daily_comp_total = sum(float(c["amount"]) for c in daily_comp)
-
-daily_exp = [e for e in expenses if e["date"].startswith(selected_date_str)]
-daily_exp_total = sum(float(e["amount"]) for e in daily_exp)
-
-daily_net = (daily_income + daily_comp_total) - daily_exp_total
-
-colA, colB, colC, colD = st.columns(4)
-colA.metric("دخل اليوم", f"{daily_income} ريال")
-colB.metric("تعويضات اليوم", f"{daily_comp_total} ريال")
-colC.metric("مصاريف اليوم", f"{daily_exp_total} ريال")
-colD.metric("صافي اليوم", f"{daily_net} ريال")
+# -----------------------------
+# 📈 صافي الربح لكل وحدة
+# -----------------------------
+st.subheader("📈 صافي الربح لكل وحدة")
+st.dataframe(unit_profit)
 
 # -----------------------------
 # 🖨 إنشاء PDF
@@ -157,6 +159,30 @@ def generate_pdf():
     c.setFont("Helvetica", 11)
     for _, row in income_per_unit.iterrows():
         c.drawString(40, y, f"وحدة {row['unit_no']}: {row['total_price']} ريال")
+        y -= 18
+
+    y -= 20
+
+    # مصاريف الوحدات
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(30, y, "💸 مصاريف كل وحدة")
+    y -= 25
+
+    c.setFont("Helvetica", 11)
+    for _, row in expenses_per_unit.iterrows():
+        c.drawString(40, y, f"وحدة {row['unit_no']}: {row['amount']} ريال")
+        y -= 18
+
+    y -= 20
+
+    # صافي الربح لكل وحدة
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(30, y, "📈 صافي الربح لكل وحدة")
+    y -= 25
+
+    c.setFont("Helvetica", 11)
+    for _, row in unit_profit.iterrows():
+        c.drawString(40, y, f"وحدة {row['unit_no']}: {row['net_profit']} ريال")
         y -= 18
 
     c.save()
