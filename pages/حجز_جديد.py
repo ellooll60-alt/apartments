@@ -34,7 +34,7 @@ supabase = create_client(url, key)
 units = supabase.table("units_names").select("*").execute().data
 clients = supabase.table("clients").select("*").execute().data
 bookings = supabase.table("bookings").select("*").execute().data
-platforms = supabase.table("platforms").select("*").execute().data   # NEW
+platforms = supabase.table("platforms").select("*").execute().data
 
 unit_list = [u["unit_no"] for u in units if u["unit_no"]]
 
@@ -90,7 +90,7 @@ if client_bookings:
         st.info(f"حجز: {b['unit_no']} — من {b['check_in']} إلى {b['check_out']}")
 
 # ============================
-# 📦 المنصة (NEW)
+# 📦 المنصة
 # ============================
 platform = st.selectbox(
     "المنصة",
@@ -98,7 +98,7 @@ platform = st.selectbox(
 )
 
 # ============================
-# 🏠 العنوان (NEW)
+# 🏠 العنوان
 # ============================
 address = st.text_input("عنوان الوحدة / الموقع")
 
@@ -142,23 +142,23 @@ else:
     st.info(f"عدد الليالي: {nights}")
 
 # ============================
-# 💸 الخصم (NEW)
+# 💸 الخصم
 # ============================
 discount_type = st.selectbox("نوع الخصم", ["%", "ريال"])
 discount = st.number_input("قيمة الخصم", min_value=0.0)
 
 # ============================
-# 🔐 التأمين (NEW)
+# 🔐 التأمين
 # ============================
 deposit = st.number_input("التأمين", min_value=0.0)
 
 # ============================
-# 💳 طريقة الدفع (NEW)
+# 💳 طريقة الدفع
 # ============================
 payment_method = st.radio("طريقة الدفع", ["كاش", "تحويل بنكي"])
 
 # ============================
-# 🧮 حساب السعر النهائي (NEW)
+# 🧮 حساب السعر النهائي
 # ============================
 total_price = nights * night_price
 
@@ -230,8 +230,20 @@ if st.button("💾 حفظ الحجز"):
         supabase.table("clients").insert({
             "name": client_name,
             "id_number": id_number,
-            "phone": phone
+            "phone": phone,
+            "stay_count": 0
         }).execute()
+
+    # ============================
+    # 🆕 تحديث عدد مرات الإقامة stay_count
+    # ============================
+    existing_client = next((c for c in clients if c["name"] == client_name), None)
+
+    if existing_client:
+        current_stays = existing_client.get("stay_count", 0)
+        supabase.table("clients").update({
+            "stay_count": current_stays + 1
+        }).eq("name", client_name).execute()
 
     # حذف الوحدة المختارة من الجلسة
     st.session_state.pop("selected_unit_for_booking", None)
