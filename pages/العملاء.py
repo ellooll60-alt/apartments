@@ -53,8 +53,7 @@ if st.button("💾 حفظ العميل"):
             "name": name,
             "phone": phone,
             "notes": notes,
-            "visits": 0,
-            "last_unit": ""
+            "stay_count": 0   # 🔥 العمود الجديد
         }).execute()
         st.success("✔ تم إضافة العميل بنجاح.")
         st.rerun()
@@ -84,10 +83,11 @@ else:
                 st.write(f"📞 {client.get('phone', 'غير متوفر')}")
 
             with col3:
-                st.write(f"📊 مرات الإقامة: {client.get('visits', 0)}")
+                # 🔥 عرض stay_count بدل visits
+                st.write(f"📊 مرات الإقامة: {client.get('stay_count', 0)}")
 
             with col4:
-                if st.button("🗑 حذف", key=f"del_client_{cid}"):
+                if st.button("🗑 حذف", key=f\"del_client_{cid}\"):
                     supabase.table("clients").delete().eq("id", client["id"]).execute()
                     st.rerun()
 
