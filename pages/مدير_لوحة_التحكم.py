@@ -7,15 +7,15 @@ import json
 from utils.auth_utils import require_role
 
 # ============================
-# 🔒 السماح للمدير + المدير المساعد
+# 🔒 حماية الصفحة للمدير فقط
 # ============================
-require_role(["admin", "manager"])
+require_role(["manager", "admin"])
 
 # ============================
 # ⚙️ إعداد الصفحة
 # ============================
-st.set_page_config(page_title="لوحة تحكم المدير", page_icon="📊", layout="wide")
-st.markdown("<h2 style='text-align:right;'>📊 لوحة تحكم المدير</h2>", unsafe_allow_html=True)
+st.set_page_config(page_title="لوحة التحكم - Manager", page_icon="📊", layout="wide")
+st.markdown("<h2 style='text-align:right;'>📊 لوحة التحكم (Manager)</h2>", unsafe_allow_html=True)
 
 # ============================
 # 📡 الاتصال بـ Supabase
@@ -28,35 +28,70 @@ supabase = create_client(url, key)
 # 📌 تحميل البيانات
 # ============================
 bookings = supabase.table("bookings").select("*").execute().data
+expenses = supabase.table("expenses").select("*").execute().data
+compensations = supabase.table("compensations").select("*").execute().data
 units = supabase.table("units_names").select("*").execute().data
-clients = supabase.table("clients").select("*").execute().data
 platforms = supabase.table("platforms").select("*").execute().data
+clients = supabase.table("clients").select("*").execute().data
+users = supabase.table("users").select("*").execute().data
 
 book_df = pd.DataFrame(bookings)
+exp_df = pd.DataFrame(expenses)
+comp_df = pd.DataFrame(compensations)
 units_df = pd.DataFrame(units)
-clients_df = pd.DataFrame(clients)
 platforms_df = pd.DataFrame(platforms)
+clients_df = pd.DataFrame(clients)
+users_df = pd.DataFrame(users)
 
 today = date.today()
 
-total_units = len(units_df)
-available_units = len(units_df[units_df["status"] == "متاحة"]) if not units_df.empty and "status" in units_df.columns else 0
-busy_units = len(units_df[units_df["status"] == "محجوزة"]) if not units_df.empty and "status" in units_df.columns else 0
-total_bookings = len(book_df)
-total_clients = len(clients_df)
+# ============================
+# 🧮 الحسابات المالية الموحدة
+# ============================
+
+# الدخل
+total_income = float(book_df["price"].sum()) if "price" in book_df else 0
+
+# المصاريف
+total_expenses = float(exp_df["amount"].sum()) if "amount" in exp_df else 0
+
+# التعويضات
+total_comp = float(comp_df["amount"].sum()) if "amount" in comp_df else 0
+
+# صافي الربح الصحيح
+net_profit = total_income - total_expenses + total_comp
 
 # ============================
-# 🧱 Tabs علوية (قابلة للتمرير)
+# 🏘️ إحصائيات الوحدات
+# ============================
+total_units = len(units_df)
+
+available_units = len(units_df[units_df["status"] == "متاحة"]) if "status" in units_df else 0
+busy_units = len(units_df[units_df["status"] == "محجوزة"]) if "status" in units_df else 0
+maintenance_units = len(units_df[units_df["status"] == "صيانة"]) if "status" in units_df else 0
+
+# ============================
+# 📊 إحصائيات عامة
+# ============================
+total_bookings = len(book_df)
+total_platforms = len(platforms_df)
+total_clients = len(clients_df)
+total_users = len(users_df)
+
+# ============================
+# 🧱 Tabs علوية
 # ============================
 tab_labels = [
     "الإحصائيات العامة",
     "التقويم التفاعلي",
     "الحجوزات",
     "المتابعة",
-    "التقارير",
+    "المصاريف",
+    "التعويضات",
     "الوحدات",
     "المنصات",
     "العملاء",
+    "الموظفين",
 ]
 
 (
@@ -64,49 +99,55 @@ tab_labels = [
     tab_calendar,
     tab_bookings,
     tab_monitor,
-    tab_reports,
+    tab_expenses,
+    tab_comp,
     tab_units,
     tab_platforms,
     tab_clients,
+    tab_employees,
 ) = st.tabs(tab_labels)
 
 # ============================
-# 🟩 Tab 1: الإحصائيات العامة
+# 🟦 Tab 1: الإحصائيات العامة
 # ============================
 with tab_stats:
-    st.subheader("📊 الإحصائيات الرئيسية")
+    st.subheader("📊 الإحصائيات العامة")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("📦 عدد الحجوزات", total_bookings)
-    col2.metric("🏘️ عدد الوحدات", total_units)
-    col3.metric("👥 عدد العملاء", total_clients)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("💰 إجمالي الدخل", f"{total_income:,.2f} ريال")
+    col2.metric("📉 المصاريف", f"{total_expenses:,.2f} ريال")
+    col3.metric("🌿 التعويضات", f"{total_comp:,.2f} ريال")
+    col4.metric("📈 صافي الربح", f"{net_profit:,.2f} ريال")
 
     st.write("---")
 
-    col4, col5 = st.columns(2)
-    col4.metric("🟢 الوحدات المتاحة", available_units)
-    col5.metric("🔴 الوحدات المحجوزة", busy_units)
+    col5, col6, col7, col8 = st.columns(4)
+    col5.metric("🏠 عدد الوحدات", total_units)
+    col6.metric("🟢 المتاحة", available_units)
+    col7.metric("🔴 المحجوزة", busy_units)
+    col8.metric("🟡 الصيانة", maintenance_units)
+
+    st.write("---")
+
+    col9, col10, col11, col12 = st.columns(4)
+    col9.metric("📦 عدد الحجوزات", total_bookings)
+    col10.metric("🌐 عدد المنصات", total_platforms)
+    col11.metric("👥 عدد العملاء", total_clients)
+    col12.metric("👨‍💼 عدد الموظفين", total_users)
 
 # ============================
-# 🟩 Tab 2: التقويم التفاعلي
+# 🟦 Tab 2: التقويم التفاعلي
 # ============================
 with tab_calendar:
     st.subheader("📅 تقويم الحجوزات (تفاعلي)")
 
     clean_events = []
     for b in bookings:
-        if not b.get("check_in") or not b.get("check_out"):
-            continue
-
         try:
             start = str(datetime.fromisoformat(b["check_in"]).date())
             end = str(datetime.fromisoformat(b["check_out"]).date())
-        except Exception:
-            try:
-                start = b["check_in"].split("T")[0]
-                end = b["check_out"].split("T")[0]
-            except Exception:
-                continue
+        except:
+            continue
 
         clean_events.append({
             "id": b["id"],
@@ -136,14 +177,6 @@ with tab_calendar:
             height: 650,
             selectable: true,
             events: eventsData,
-
-            dateClick: function(info) {{
-                window.parent.postMessage({{ action: "add", date: info.dateStr }}, "*");
-            }},
-
-            eventClick: function(info) {{
-                window.parent.postMessage({{ action: "edit", id: info.event.id }}, "*");
-            }}
         }});
 
         calendar.render();
@@ -154,55 +187,37 @@ with tab_calendar:
     st.components.v1.html(calendar_html, height=700)
 
 # ============================
-# 🟩 Tab 3: الحجوزات (جدول تفاعلي)
+# 🟦 Tab 3: الحجوزات
 # ============================
 with tab_bookings:
-    st.subheader("📋 جدول الحجوزات (تفاعلي وقابل للبحث)")
+    st.subheader("📋 جدول الحجوزات")
 
     if not book_df.empty:
         for col in ["check_in", "check_out", "created_at"]:
             if col in book_df.columns:
                 book_df[col] = book_df[col].astype(str)
 
-        search = st.text_input("🔍 بحث (اسم العميل، رقم الوحدة، المنصة):", "")
-
-        filtered = book_df.copy()
-        if search:
-            s = search.lower()
-            def match_row(row):
-                client = str(row.get("client_name", "")).lower()
-                unit_no = str(row.get("unit_no", "")).lower()
-                platform = str(row.get("platform", "")).lower()
-                return (s in client) or (s in unit_no) or (s in platform)
-            filtered = filtered[filtered.apply(match_row, axis=1)]
-
-        cols_to_show = [c for c in [
-            "id",
-            "client_name",
-            "unit_no",
-            "platform",
-            "check_in",
-            "check_out",
-            "price",
-            "note",
-        ] if c in filtered.columns]
-
-        st.dataframe(filtered[cols_to_show], use_container_width=True)
+        st.dataframe(book_df, use_container_width=True)
     else:
         st.info("لا توجد حجوزات.")
 
 # ============================
-# 🟩 Tab 4: المتابعة
+# 🟦 Tab 4: المتابعة
 # ============================
 with tab_monitor:
     st.subheader("📆 المتابعة اليومية / الأسبوعية / الشهرية")
 
-    tomorrow = today + timedelta(days=1)
+    def to_date(d):
+        try:
+            return datetime.fromisoformat(d).date()
+        except:
+            return None
 
-    bookings_today = [b for b in bookings if b.get("check_in") == str(today)]
-    bookings_tomorrow = [b for b in bookings if b.get("check_in") == str(tomorrow)]
-    checkout_today = [b for b in bookings if b.get("check_out") == str(today)]
-    checkout_tomorrow = [b for b in bookings if b.get("check_out") == str(tomorrow)]
+    # يومي
+    bookings_today = [b for b in bookings if to_date(b.get("check_in")) == today]
+    bookings_tomorrow = [b for b in bookings if to_date(b.get("check_in")) == today + timedelta(days=1)]
+    checkout_today = [b for b in bookings if to_date(b.get("check_out")) == today]
+    checkout_tomorrow = [b for b in bookings if to_date(b.get("check_out")) == today + timedelta(days=1)]
 
     colA, colB, colC, colD = st.columns(4)
     colA.metric("حجوزات اليوم", len(bookings_today))
@@ -212,36 +227,52 @@ with tab_monitor:
 
     st.write("---")
 
+    # أسبوعي
     week_start = today - timedelta(days=7)
-    weekly_bookings = [b for b in bookings if b.get("check_in", "") >= str(week_start)]
-    weekly_checkout = [b for b in bookings if b.get("check_out", "") >= str(week_start)]
+    weekly_bookings = [b for b in bookings if to_date(b.get("check_in")) and to_date(b.get("check_in")) >= week_start]
+    weekly_income = sum(float(b.get("price", 0)) for b in weekly_bookings)
 
     col1, col2 = st.columns(2)
     col1.metric("حجوزات الأسبوع", len(weekly_bookings))
-    col2.metric("مغادرين الأسبوع", len(weekly_checkout))
+    col2.metric("الدخل الأسبوعي", f"{weekly_income:,.2f} ريال")
 
-# ============================
-# 🟩 Tab 5: التقارير
-# ============================
-with tab_reports:
-    st.subheader("📊 تقارير بسيطة للمدير")
+    st.write("---")
 
+    # شهري
     month_start = today - timedelta(days=30)
-    monthly_bookings = [b for b in bookings if b.get("check_in", "") >= str(month_start)]
-    monthly_income = sum(float(b.get("price", 0) or 0) for b in monthly_bookings)
+    monthly_bookings = [b for b in bookings if to_date(b.get("check_in")) and to_date(b.get("check_in")) >= month_start]
+    monthly_income = sum(float(b.get("price", 0)) for b in monthly_bookings)
 
-    col1, col2 = st.columns(2)
-    col1.metric("حجوزات الشهر", len(monthly_bookings))
-    col2.metric("الدخل الشهري (تقريبي)", f"{monthly_income:,.2f} ريال")
-
-    if not book_df.empty and "platform" in book_df.columns and "price" in book_df.columns:
-        st.markdown("#### أداء المنصات")
-        platform_stats = book_df.groupby("platform")["price"].agg(["count", "sum"]).reset_index()
-        platform_stats.rename(columns={"count": "عدد الحجوزات", "sum": "إجمالي الدخل"}, inplace=True)
-        st.dataframe(platform_stats, use_container_width=True)
+    col3, col4 = st.columns(2)
+    col3.metric("حجوزات الشهر", len(monthly_bookings))
+    col4.metric("الدخل الشهري", f"{monthly_income:,.2f} ريال")
 
 # ============================
-# 🟩 Tab 6: الوحدات
+# 🟦 Tab 5: المصاريف
+# ============================
+with tab_expenses:
+    st.subheader("📉 المصاريف")
+
+    if not exp_df.empty:
+        exp_df["date_added"] = exp_df["date_added"].astype(str)
+        st.dataframe(exp_df, use_container_width=True)
+    else:
+        st.info("لا توجد مصاريف.")
+
+# ============================
+# 🟦 Tab 6: التعويضات
+# ============================
+with tab_comp:
+    st.subheader("🌿 التعويضات")
+
+    if not comp_df.empty:
+        comp_df["date_added"] = comp_df["date_added"].astype(str)
+        st.dataframe(comp_df, use_container_width=True)
+    else:
+        st.info("لا توجد تعويضات.")
+
+# ============================
+# 🟦 Tab 7: الوحدات
 # ============================
 with tab_units:
     st.subheader("🏘️ الوحدات")
@@ -249,10 +280,10 @@ with tab_units:
     if not units_df.empty:
         st.dataframe(units_df, use_container_width=True)
     else:
-        st.info("لا توجد وحدات مسجلة.")
+        st.info("لا توجد وحدات.")
 
 # ============================
-# 🟩 Tab 7: المنصات
+# 🟦 Tab 8: المنصات
 # ============================
 with tab_platforms:
     st.subheader("🌐 المنصات")
@@ -260,29 +291,26 @@ with tab_platforms:
     if not platforms_df.empty:
         st.dataframe(platforms_df, use_container_width=True)
     else:
-        st.info("لا توجد منصات مسجلة.")
+        st.info("لا توجد منصات.")
 
 # ============================
-# 🟩 Tab 8: العملاء
+# 🟦 Tab 9: العملاء
 # ============================
 with tab_clients:
     st.subheader("👥 العملاء")
 
     if not clients_df.empty:
-        clients_df_display = clients_df.copy()
-        if "created_at" in clients_df_display.columns:
-            clients_df_display["created_at"] = clients_df_display["created_at"].astype(str)
-
-        search_client = st.text_input("🔍 بحث عن عميل بالاسم أو الجوال:", "")
-        filtered_clients = clients_df_display
-        if search_client:
-            s = search_client.lower()
-            def match_client(row):
-                name = str(row.get("name", "")).lower()
-                phone = str(row.get("phone", "")).lower()
-                return (s in name) or (s in phone)
-            filtered_clients = filtered_clients[filtered_clients.apply(match_client, axis=1)]
-
-        st.dataframe(filtered_clients, use_container_width=True)
+        st.dataframe(clients_df, use_container_width=True)
     else:
-        st.info("لا يوجد عملاء مسجلين.")
+        st.info("لا يوجد عملاء.")
+
+# ============================
+# 🟦 Tab 10: الموظفين
+# ============================
+with tab_employees:
+    st.subheader("👨‍💼 الموظفون")
+
+    if not users_df.empty:
+        st.dataframe(users_df, use_container_width=True)
+    else:
+        st.info("لا يوجد موظفون.")
