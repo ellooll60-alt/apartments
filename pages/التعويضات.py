@@ -1,150 +1,112 @@
-import sys, os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import streamlit as st
-from supabase import create_client
-from datetime import date
+from utils.supabase_client import supabase
+from utils.auth import check_auth
+from datetime import datetime
 
-from utils.auth_utils import require_role
+check_auth()
 
-# ============================
-# 🔒 حماية الصفحة
-# ============================
-require_role(["admin", "manager"])
+st.title("🌿 إدارة التعويضات")
 
-# ============================
-# ⚙️ إعداد الصفحة
-# ============================
-st.set_page_config(page_title="إدارة التعويضات", page_icon="⚠️", layout="wide")
-st.markdown("<h2 style='text-align:right;'>⚠️ إدارة التعويضات</h2>", unsafe_allow_html=True)
+# -----------------------------
+# 🔧 تحميل البيانات الأساسية
+# -----------------------------
+def get_bookings():
+    return supabase.table("bookings").select("*").execute().data
 
-# ============================
-# 📡 الاتصال بـ Supabase
-# ============================
-url = st.secrets["SUPABASE_URL"]
-key = st.secrets["SUPABASE_KEY"]
-supabase = create_client(url, key)
+def get_compensations():
+    return supabase.table("compensations").select("*").order("id", desc=True).execute().data
 
-# ============================
-# 📌 تحميل البيانات
-# ============================
-units = supabase.table("units_names").select("*").order("id").execute().data
-bookings = supabase.table("bookings").select("*").order("id", desc=True).execute().data
+def add_compensation(data):
+    return supabase.table("compensations").insert(data).execute()
 
-unit_list = [u["unit_no"] for u in units]
+def update_compensation(cid, data):
+    return supabase.table("compensations").update(data).eq("id", cid).execute()
 
-# ============================
-# 🏘️ اختيار الوحدة
-# ============================
+def delete_compensation(cid):
+    return supabase.table("compensations").delete().eq("id", cid).execute()
+
+bookings = get_bookings()
+compensations = get_compensations()
+
+# -----------------------------
+# 🟩 إضافة تعويض جديد
+# -----------------------------
 st.subheader("➕ إضافة تعويض جديد")
 
-selected_unit = st.selectbox("🏘️ اختر الوحدة", [""] + unit_list)
-
-# فلترة الحجوزات حسب الوحدة
-filtered_bookings = [
-    b for b in bookings if b["unit_no"] == selected_unit
-] if selected_unit else []
-
-booking_list = {
-    f"{b['id']} - {b['client_name']} - {b['unit_no']}": b
-    for b in filtered_bookings
-}
-
-col1, col2 = st.columns(2)
-
-with col1:
-    selected_booking = st.selectbox(
+with st.form("add_compensation_form"):
+    booking_id = st.selectbox(
         "اختر الحجز",
-        list(booking_list.keys()) if booking_list else []
+        options=[b["id"] for b in bookings],
+        format_func=lambda x: f"حجز #{x}"
     )
-    damage_type = st.text_input("نوع الضرر")
-    amount = st.number_input("المبلغ", min_value=0.0, value=0.0)
 
-with col2:
-    date_added = st.date_input("تاريخ الإضافة", date.today())
-    notes = st.text_area("ملاحظات")
+    reason = st.text_input("سبب التعويض")
+    amount = st.number_input("قيمة التعويض (ريال)", min_value=0.0, step=1.0)
+    date = st.date_input("تاريخ التعويض", datetime.today())
 
-if st.button("💾 حفظ التعويض"):
-    if not selected_booking:
-        st.error("⚠️ الرجاء اختيار حجز.")
-    else:
-        b = booking_list[selected_booking]
+    submitted = st.form_submit_button("إضافة التعويض")
 
-        data = {
-            "booking_id": b["id"],
-            "unit_no": b["unit_no"],
-            "client_name": b["client_name"],
-            "damage_type": damage_type,
-            "amount": amount,
-            "notes": notes,
-            "date_added": str(date_added)
-        }
+    if submitted:
+        if amount <= 0:
+            st.error("قيمة التعويض يجب أن تكون أكبر من صفر")
+        else:
+            add_compensation({
+                "booking_id": booking_id,
+                "reason": reason,
+                "amount": amount,  # ✔ موجبة دائمًا
+                "date": str(date)
+            })
+            st.success("تم إضافة التعويض بنجاح")
+            st.rerun()
 
-        supabase.table("compensations").insert(data).execute()
-        st.success("✔ تم حفظ التعويض بنجاح.")
-        st.rerun()
-
-# ============================
+# -----------------------------
 # 📋 عرض التعويضات
-# ============================
-st.write("---")
-st.subheader("📋 قائمة التعويضات")
-
-compensations = supabase.table("compensations").select("*").order("id", desc=True).execute().data
+# -----------------------------
+st.subheader("📄 قائمة التعويضات")
 
 if not compensations:
-    st.info("لا توجد تعويضات مسجلة.")
+    st.info("لا توجد تعويضات مسجلة")
 else:
     for comp in compensations:
-        with st.expander(
-            f"⚠️ تعويض رقم {comp['id']} — {comp['client_name']} — {comp['amount']} ريال"
-        ):
+        with st.expander(f"تعويض #{comp['id']} — {comp['amount']} ريال"):
+            st.write(f"**الحجز:** {comp['booking_id']}")
+            st.write(f"**السبب:** {comp['reason']}")
+            st.write(f"**التاريخ:** {comp['date']}")
 
-            colA, colB = st.columns(2)
+            col1, col2 = st.columns(2)
 
-            with colA:
-                new_damage = st.text_input(
-                    "نوع الضرر",
-                    comp["damage_type"],
-                    key=f"damage_{comp['id']}"
-                )
-                new_amount = st.number_input(
-                    "المبلغ",
-                    min_value=0.0,
-                    value=float(comp["amount"]),
-                    key=f"amount_{comp['id']}"
-                )
+            with col1:
+                if st.button(f"✏ تعديل_{comp['id']}"):
+                    st.session_state["edit_id"] = comp["id"]
 
-            with colB:
-                new_date = st.date_input(
-                    "التاريخ",
-                    date.fromisoformat(comp["date_added"]),
-                    key=f"date_{comp['id']}"
-                )
-                new_notes = st.text_area(
-                    "ملاحظات",
-                    comp.get("notes", ""),
-                    key=f"notes_{comp['id']}"
-                )
+            with col2:
+                if st.button(f"🗑 حذف_{comp['id']}"):
+                    delete_compensation(comp["id"])
+                    st.success("تم حذف التعويض")
+                    st.rerun()
 
-            # ============================
-            # ✏️ تعديل التعويض
-            # ============================
-            if st.button("💾 حفظ التعديلات", key=f"save_{comp['id']}"):
-                supabase.table("compensations").update({
-                    "damage_type": new_damage,
-                    "amount": new_amount,
-                    "date_added": str(new_date),
-                    "notes": new_notes
-                }).eq("id", comp["id"]).execute()
+# -----------------------------
+# ✏ تعديل تعويض
+# -----------------------------
+if "edit_id" in st.session_state:
+    cid = st.session_state["edit_id"]
+    comp = next((c for c in compensations if c["id"] == cid), None)
 
-                st.success("✔ تم تحديث التعويض بنجاح.")
-                st.rerun()
+    st.subheader("✏ تعديل التعويض")
 
-            # ============================
-            # 🗑️ حذف التعويض
-            # ============================
-            if st.button("🗑️ حذف التعويض", key=f"delete_{comp['id']}"):
-                supabase.table("compensations").delete().eq("id", comp["id"]).execute()
-                st.error("⚠️ تم حذف التعويض.")
-                st.rerun()
+    with st.form("edit_compensation_form"):
+        new_reason = st.text_input("سبب التعويض", comp["reason"])
+        new_amount = st.number_input("قيمة التعويض", min_value=0.0, value=float(comp["amount"]))
+        new_date = st.date_input("تاريخ التعويض", datetime.strptime(comp["date"], "%Y-%m-%d"))
+
+        save = st.form_submit_button("حفظ التعديلات")
+
+        if save:
+            update_compensation(cid, {
+                "reason": new_reason,
+                "amount": new_amount,
+                "date": str(new_date)
+            })
+            st.success("تم تحديث التعويض")
+            del st.session_state["edit_id"]
+            st.rerun()
