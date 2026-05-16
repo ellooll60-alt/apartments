@@ -6,14 +6,26 @@ from supabase import create_client
 from datetime import datetime
 import qrcode
 from io import BytesIO
+
+# PDF + Arabic
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+import arabic_reshaper
+from bidi.algorithm import get_display
+
 from utils.auth_utils import require_role
+
+# ============================
+# 🔐 دالة تجهيز النص العربي
+# ============================
+def ar(text: str) -> str:
+    reshaped = arabic_reshaper.reshape(text)
+    bidi_text = get_display(reshaped)
+    return bidi_text
 
 # ============================
 # 🔒 حماية الصفحة
@@ -104,7 +116,7 @@ qr_img.save(buf, format="PNG")
 qr_bytes = buf.getvalue()
 
 # ============================
-# 📄 إنشاء PDF (Minimal Clean + Arabic Font)
+# 📄 إنشاء PDF (Arabic + Tajawal)
 # ============================
 def generate_pdf():
     buffer = BytesIO()
@@ -113,18 +125,17 @@ def generate_pdf():
     width, height = A4
     y = height - 40
 
-    # استخدام الخط العربي
+    # عنوان الشركة
     c.setFont("Arabic", 20)
-    c.drawRightString(width - 40, y, company_name)
-    y -= 15
+    c.drawRightString(width - 40, y, ar(company_name))
+    y -= 20
 
-    c.setLineWidth(0.5)
     c.line(40, y, width - 40, y)
     y -= 40
 
     # عنوان الفاتورة
     c.setFont("Arabic", 18)
-    c.drawRightString(width - 40, y, "فاتورة")
+    c.drawRightString(width - 40, y, ar("فاتورة"))
     y -= 35
 
     # بيانات الفاتورة
@@ -139,7 +150,7 @@ def generate_pdf():
     ]
 
     for line in info:
-        c.drawRightString(width - 40, y, line)
+        c.drawRightString(width - 40, y, ar(line))
         y -= 22
 
     y -= 10
@@ -148,7 +159,7 @@ def generate_pdf():
 
     # جدول الأسعار
     c.setFont("Arabic", 15)
-    c.drawRightString(width - 40, y, "تفاصيل المبلغ")
+    c.drawRightString(width - 40, y, ar("تفاصيل المبلغ"))
     y -= 30
 
     c.setFont("Arabic", 13)
@@ -160,8 +171,8 @@ def generate_pdf():
     ]
 
     for title, value in rows:
-        c.drawRightString(width - 40, y, value)
-        c.drawRightString(width - 200, y, title)
+        c.drawRightString(width - 40, y, ar(value))
+        c.drawRightString(width - 200, y, ar(title))
         y -= 22
 
     c.line(40, y, width - 40, y)
@@ -169,7 +180,7 @@ def generate_pdf():
 
     # الإجمالي النهائي
     c.setFont("Arabic", 16)
-    c.drawRightString(width - 40, y, f"الإجمالي النهائي: {total} ريال")
+    c.drawRightString(width - 40, y, ar(f"الإجمالي النهائي: {total} ريال"))
     y -= 50
 
     # QR Code
@@ -180,8 +191,7 @@ def generate_pdf():
 
     # فوتر
     c.setFont("Arabic", 11)
-    c.setFillGray(0.4)
-    c.drawCentredString(width / 2, 40, f"للتواصل: {whatsapp}")
+    c.drawCentredString(width / 2, 40, ar(f"للتواصل: {whatsapp}"))
 
     c.save()
     pdf = buffer.getvalue()
