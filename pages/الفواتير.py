@@ -10,6 +10,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 from utils.auth_utils import require_role
 
@@ -30,6 +32,11 @@ st.markdown("<h2 style='text-align:right;'>🧾 إنشاء فاتورة</h2>", u
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
+
+# ============================
+# 🖋️ تسجيل الخط العربي
+# ============================
+pdfmetrics.registerFont(TTFont("Arabic", "fonts/Tajawal-Regular.ttf"))
 
 # ============================
 # 📌 تحميل الإعدادات
@@ -90,14 +97,14 @@ invoice_number = f"INV-{datetime.now().strftime('%Y%m%d')}-{booking['id']}"
 # ============================
 # 🔳 QR Code
 # ============================
-qr_data = f"{company_name}\nInvoice: {invoice_number}\nTotal: {total} SAR"
+qr_data = f"Invoice: {invoice_number}\nTotal: {total} SAR"
 qr_img = qrcode.make(qr_data)
 buf = BytesIO()
 qr_img.save(buf, format="PNG")
 qr_bytes = buf.getvalue()
 
 # ============================
-# 📄 إنشاء PDF (Minimal Clean)
+# 📄 إنشاء PDF (Minimal Clean + Arabic Font)
 # ============================
 def generate_pdf():
     buffer = BytesIO()
@@ -106,28 +113,22 @@ def generate_pdf():
     width, height = A4
     y = height - 40
 
-    # ============================
-    # 🏢 هيدر بسيط
-    # ============================
-    c.setFont("Helvetica-Bold", 18)
+    # استخدام الخط العربي
+    c.setFont("Arabic", 20)
     c.drawRightString(width - 40, y, company_name)
-    y -= 10
+    y -= 15
 
     c.setLineWidth(0.5)
     c.line(40, y, width - 40, y)
     y -= 40
 
-    # ============================
-    # 📄 عنوان الفاتورة
-    # ============================
-    c.setFont("Helvetica-Bold", 16)
+    # عنوان الفاتورة
+    c.setFont("Arabic", 18)
     c.drawRightString(width - 40, y, "فاتورة")
-    y -= 30
+    y -= 35
 
-    # ============================
-    # 📌 بيانات الفاتورة
-    # ============================
-    c.setFont("Helvetica", 12)
+    # بيانات الفاتورة
+    c.setFont("Arabic", 13)
     info = [
         f"رقم الفاتورة: {invoice_number}",
         f"العميل: {booking['client_name']}",
@@ -139,20 +140,18 @@ def generate_pdf():
 
     for line in info:
         c.drawRightString(width - 40, y, line)
-        y -= 20
+        y -= 22
 
     y -= 10
     c.line(40, y, width - 40, y)
     y -= 30
 
-    # ============================
-    # 💰 جدول الأسعار
-    # ============================
-    c.setFont("Helvetica-Bold", 13)
+    # جدول الأسعار
+    c.setFont("Arabic", 15)
     c.drawRightString(width - 40, y, "تفاصيل المبلغ")
-    y -= 25
+    y -= 30
 
-    c.setFont("Helvetica", 12)
+    c.setFont("Arabic", 13)
     rows = [
         ("سعر الأساس", f"{base_price} ريال"),
         ("الخصم", f"{discount_value} ريال"),
@@ -163,30 +162,24 @@ def generate_pdf():
     for title, value in rows:
         c.drawRightString(width - 40, y, value)
         c.drawRightString(width - 200, y, title)
-        y -= 20
+        y -= 22
 
     c.line(40, y, width - 40, y)
     y -= 30
 
-    # ============================
-    # 💵 الإجمالي النهائي
-    # ============================
-    c.setFont("Helvetica-Bold", 14)
+    # الإجمالي النهائي
+    c.setFont("Arabic", 16)
     c.drawRightString(width - 40, y, f"الإجمالي النهائي: {total} ريال")
-    y -= 40
+    y -= 50
 
-    # ============================
-    # 🔳 QR Code
-    # ============================
+    # QR Code
     qr_image = ImageReader(BytesIO(qr_bytes))
-    c.drawImage(qr_image, width - 160, y - 120, width=120, height=120)
+    c.drawImage(qr_image, width - 160, y - 140, width=120, height=120)
 
     y -= 160
 
-    # ============================
-    # 📞 فوتر بسيط
-    # ============================
-    c.setFont("Helvetica", 10)
+    # فوتر
+    c.setFont("Arabic", 11)
     c.setFillGray(0.4)
     c.drawCentredString(width / 2, 40, f"للتواصل: {whatsapp}")
 
