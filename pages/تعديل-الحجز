@@ -1,0 +1,183 @@
+import sys, os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import streamlit as st
+from supabase import create_client
+from datetime import date, datetime
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+
+from utils.auth_utils import require_role
+
+# ============================
+# 🔒 حماية الصفحة
+# ============================
+require_role(["admin", "manager", "employee"])
+
+# ============================
+# ⚙️ إعداد الصفحة
+# ============================
+st.set_page_config(page_title="تعديل الحجز", page_icon="✏️", layout="wide")
+st.markdown("<h2 style='text-align:right;'>✏️ تعديل الحجز</h2>", unsafe_allow_html=True)
+
+# ============================
+# 📡 الاتصال بـ Supabase
+# ============================
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
+supabase = create_client(url, key)
+
+# ============================
+# 📌 تحميل البيانات
+# ============================
+units = supabase.table("units_names").select("*").execute().data
+clients = supabase.table("clients").select("*").execute().data
+platforms = supabase.table("platforms").select("*").execute().data
+
+# استقبال ID الحجز من صفحة أخرى
+booking_id = st.session_state.get("edit_booking_id")
+
+if not booking_id:
+    st.error("لا يوجد حجز محدد للتعديل.")
+    st.stop()
+
+booking = supabase.table("bookings").select("*").eq("id", booking_id).execute().data[0]
+
+# ============================
+# 🏘️ اختيار الوحدة
+# ============================
+unit_list = [u["unit_no"] for u in units]
+
+unit_no = st.selectbox(
+    "رقم الوحدة",
+    unit_list,
+    index=unit_list.index(booking["unit_no"])
+)
+
+# ============================
+# 👤 العميل
+# ============================
+client_names = [c["name"] for c in clients]
+
+client_name = st.selectbox(
+    "اسم العميل",
+    client_names,
+    index=client_names.index(booking["client_name"]) if booking["client_name"] in client_names else 0
+)
+
+selected_client = next((c for c in clients if c["name"] == client_name), None)
+
+id_number = st.text_input("رقم الهوية", booking["id_number"], max_chars=10)
+phone = st.text_input("رقم الهاتف", booking["phone"])
+
+# ============================
+# 📦 المنصة
+# ============================
+platform_names = [p["name"] for p in platforms]
+
+platform = st.selectbox(
+    "المنصة",
+    platform_names,
+    index=platform_names.index(booking["platform"]) if booking["platform"] in platform_names else 0
+)
+
+# ============================
+# 🏠 العنوان
+# ============================
+address = st.text_input("العنوان", booking.get("address", ""))
+
+# ============================
+# 📅 التواريخ
+# ============================
+col1, col2 = st.columns(2)
+
+with col1:
+    check_in = st.date_input("تاريخ الدخول", date.fromisoformat(booking["check_in"]))
+
+with col2:
+    check_out = st.date_input("تاريخ الخروج", date.fromisoformat(booking["check_out"]))
+
+# ============================
+# 💰 السعر
+# ============================
+night_price = st.number_input("سعر الليلة", min_value=0.0, value=float(booking["night_price"]))
+
+nights = (check_out - check_in).days
+if nights < 1:
+    st.warning("تاريخ الخروج يجب أن يكون بعد الدخول.")
+else:
+    st.info(f"عدد الليالي: {nights}")
+
+# ============================
+# 💸 الخصم
+# ============================
+discount_type = st.selectbox("نوع الخصم", ["%", "ريال"], index=0 if booking["discount_type"] == "%" else 1)
+discount = st.number_input("قيمة الخصم", min_value=0.0, value=float(booking["discount"]))
+
+# ============================
+# 🔐 التأمين
+# ============================
+deposit = st.number_input("التأمين", min_value=0.0, value=float(booking["deposit"]))
+
+# ============================
+# 💳 طريقة الدفع
+# ============================
+payment_method = st.radio("طريقة الدفع", ["كاش", "تحويل بنكي"])
+
+# ============================
+# 🧮 حساب السعر النهائي
+# ============================
+total_price = nights * night_price
+
+if discount_type == "%":
+    total_price -= total_price * (discount / 100)
+else:
+    total_price -= discount
+
+total_price += deposit
+
+st.success(f"إجمالي السعر النهائي: {total_price} ريال")
+
+notes = st.text_area("ملاحظات", booking.get("notes", ""))
+
+# ============================
+# 💾 حفظ التعديلات
+# ============================
+if st.button("💾 حفظ التعديلات"):
+
+    if len(id_number) != 10:
+        st.error("❌ رقم الهوية يجب أن يكون 10 أرقام.")
+        st.stop()
+
+    if nights < 1:
+        st.error("❌ تاريخ الخروج يجب أن يكون بعد الدخول.")
+        st.stop()
+
+    # تحديث الحجز
+    data = {
+        "client_name": client_name,
+        "id_number": id_number,
+        "phone": phone,
+        "unit_no": unit_no,
+        "check_in": str(check_in),
+        "check_out": str(check_out),
+        "night_price": night_price,
+        "price": total_price,
+        "discount": discount,
+        "discount_type": discount_type,
+        "deposit": deposit,
+        "platform": platform,
+        "address": address,
+        "notes": notes
+    }
+
+    supabase.table("bookings").update(data).eq("id", booking_id).execute()
+
+    # تحديث بيانات العميل
+    supabase.table("clients").update({
+        "id_number": id_number,
+        "phone": phone
+    }).eq("name", client_name).execute()
+
+    st.success("✔ تم تحديث الحجز بنجاح.")
+    st.rerun()
