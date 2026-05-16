@@ -124,22 +124,23 @@ def generate_pdf():
 
     width, height = A4
     y = height - 40
+    RIGHT_MARGIN = 70  # ← زيادة الهامش لمنع قص الحروف
 
     # عنوان الشركة
     c.setFont("Arabic", 20)
-    c.drawRightString(width - 40, y, ar(company_name))
-    y -= 20
+    c.drawRightString(width - RIGHT_MARGIN, y, ar(company_name))
+    y -= 25
 
     c.line(40, y, width - 40, y)
     y -= 40
 
     # عنوان الفاتورة
     c.setFont("Arabic", 18)
-    c.drawRightString(width - 40, y, ar("فاتورة"))
-    y -= 35
+    c.drawRightString(width - RIGHT_MARGIN, y, ar("فاتورة"))
+    y -= 40
 
     # بيانات الفاتورة
-    c.setFont("Arabic", 13)
+    c.setFont("Arabic", 14)
     info = [
         f"رقم الفاتورة: {invoice_number}",
         f"العميل: {booking['client_name']}",
@@ -150,19 +151,19 @@ def generate_pdf():
     ]
 
     for line in info:
-        c.drawRightString(width - 40, y, ar(line))
-        y -= 22
+        c.drawRightString(width - RIGHT_MARGIN, y, ar(line))
+        y -= 25
 
     y -= 10
     c.line(40, y, width - 40, y)
-    y -= 30
+    y -= 35
 
     # جدول الأسعار
-    c.setFont("Arabic", 15)
-    c.drawRightString(width - 40, y, ar("تفاصيل المبلغ"))
-    y -= 30
+    c.setFont("Arabic", 16)
+    c.drawRightString(width - RIGHT_MARGIN, y, ar("تفاصيل المبلغ"))
+    y -= 35
 
-    c.setFont("Arabic", 13)
+    c.setFont("Arabic", 14)
     rows = [
         ("سعر الأساس", f"{base_price} ريال"),
         ("الخصم", f"{discount_value} ريال"),
@@ -171,17 +172,17 @@ def generate_pdf():
     ]
 
     for title, value in rows:
-        c.drawRightString(width - 40, y, ar(value))
-        c.drawRightString(width - 200, y, ar(title))
-        y -= 22
+        c.drawRightString(width - RIGHT_MARGIN, y, ar(value))
+        c.drawRightString(width - 250, y, ar(title))
+        y -= 25
 
     c.line(40, y, width - 40, y)
-    y -= 30
+    y -= 35
 
     # الإجمالي النهائي
-    c.setFont("Arabic", 16)
-    c.drawRightString(width - 40, y, ar(f"الإجمالي النهائي: {total} ريال"))
-    y -= 50
+    c.setFont("Arabic", 18)
+    c.drawRightString(width - RIGHT_MARGIN, y, ar(f"الإجمالي النهائي: {total} ريال"))
+    y -= 60
 
     # QR Code
     qr_image = ImageReader(BytesIO(qr_bytes))
@@ -190,7 +191,7 @@ def generate_pdf():
     y -= 160
 
     # فوتر
-    c.setFont("Arabic", 11)
+    c.setFont("Arabic", 12)
     c.drawCentredString(width / 2, 40, ar(f"للتواصل: {whatsapp}"))
 
     c.save()
