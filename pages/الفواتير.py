@@ -8,6 +8,7 @@ import qrcode
 from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader   # ← NEW
 
 from utils.auth_utils import require_role
 
@@ -127,8 +128,9 @@ def generate_pdf():
     c.drawString(50, y, f"Total: {total} SAR")
     y -= 40
 
-    # QR Code
-    c.drawInlineImage(qr_bytes, 50, y - 150, width=120, height=120)
+    # QR Code (FIXED)
+    qr_image = ImageReader(BytesIO(qr_bytes))
+    c.drawImage(qr_image, 50, y - 150, width=120, height=120)
 
     c.showPage()
     c.save()
