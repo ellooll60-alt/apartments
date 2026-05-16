@@ -34,6 +34,7 @@ supabase = create_client(url, key)
 units = supabase.table("units_names").select("*").execute().data
 clients = supabase.table("clients").select("*").execute().data
 bookings = supabase.table("bookings").select("*").execute().data
+platforms = supabase.table("platforms").select("*").execute().data   # NEW
 
 unit_list = [u["unit_no"] for u in units if u["unit_no"]]
 
@@ -89,6 +90,19 @@ if client_bookings:
         st.info(f"حجز: {b['unit_no']} — من {b['check_in']} إلى {b['check_out']}")
 
 # ============================
+# 📦 المنصة (NEW)
+# ============================
+platform = st.selectbox(
+    "المنصة",
+    [p["name"] for p in platforms]
+)
+
+# ============================
+# 🏠 العنوان (NEW)
+# ============================
+address = st.text_input("عنوان الوحدة / الموقع")
+
+# ============================
 # 📅 التواريخ
 # ============================
 col1, col2 = st.columns(2)
@@ -127,8 +141,35 @@ if nights < 1:
 else:
     st.info(f"عدد الليالي: {nights}")
 
+# ============================
+# 💸 الخصم (NEW)
+# ============================
+discount_type = st.selectbox("نوع الخصم", ["%", "ريال"])
+discount = st.number_input("قيمة الخصم", min_value=0.0)
+
+# ============================
+# 🔐 التأمين (NEW)
+# ============================
+deposit = st.number_input("التأمين", min_value=0.0)
+
+# ============================
+# 💳 طريقة الدفع (NEW)
+# ============================
+payment_method = st.radio("طريقة الدفع", ["كاش", "تحويل بنكي"])
+
+# ============================
+# 🧮 حساب السعر النهائي (NEW)
+# ============================
 total_price = nights * night_price
-st.success(f"إجمالي السعر: {total_price} ريال")
+
+if discount_type == "%":
+    total_price -= total_price * (discount / 100)
+else:
+    total_price -= discount
+
+total_price += deposit
+
+st.success(f"إجمالي السعر النهائي: {total_price} ريال")
 
 notes = st.text_area("ملاحظات")
 
@@ -137,7 +178,6 @@ notes = st.text_area("ملاحظات")
 # ============================
 if st.button("💾 حفظ الحجز"):
 
-    # التحقق من رقم الهوية
     if len(id_number) != 10:
         st.error("❌ رقم الهوية يجب أن يكون 10 أرقام بالضبط")
         st.stop()
@@ -164,13 +204,18 @@ if st.button("💾 حفظ الحجز"):
         "check_out": str(check_out),
         "night_price": night_price,
         "price": total_price,
+        "discount": discount,
+        "discount_type": discount_type,
+        "deposit": deposit,
+        "platform": platform,
+        "address": address,
         "notes": notes,
         "created_at": datetime.now().isoformat()
     }
 
     supabase.table("bookings").insert(data).execute()
 
-    # تحديث حالة الوحدة إلى محجوزة
+    # تحديث حالة الوحدة
     supabase.table("units_names").update({"status": "محجوزة"}).eq("unit_no", unit_no).execute()
 
     # تحديث بيانات العميل أو إضافته
@@ -194,7 +239,7 @@ if st.button("💾 حفظ الحجز"):
     st.success("✔ تم حفظ الحجز بنجاح.")
 
     # ============================
-    # 📄 إنشاء فاتورة PDF باستخدام ReportLab
+    # 📄 إنشاء فاتورة PDF
     # ============================
     pdf_file = f"invoice_{client_name}_{datetime.now().timestamp()}.pdf"
     c = canvas.Canvas(pdf_file, pagesize=A4)
@@ -211,7 +256,10 @@ if st.button("💾 حفظ الحجز"):
         f"تاريخ الخروج: {check_out}",
         f"عدد الليالي: {nights}",
         f"سعر الليلة: {night_price} ريال",
-        f"الإجمالي: {total_price} ريال",
+        f"الخصم: {discount} ({discount_type})",
+        f"التأمين: {deposit} ريال",
+        f"طريقة الدفع: {payment_method}",
+        f"الإجمالي النهائي: {total_price} ريال",
     ]
 
     for line in lines:
