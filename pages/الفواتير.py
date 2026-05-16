@@ -8,7 +8,8 @@ import qrcode
 from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.utils import ImageReader   # ← NEW
+from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 
 from utils.auth_utils import require_role
 
@@ -96,45 +97,100 @@ qr_img.save(buf, format="PNG")
 qr_bytes = buf.getvalue()
 
 # ============================
-# 📄 إنشاء PDF
+# 📄 إنشاء PDF (Minimal Clean)
 # ============================
 def generate_pdf():
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
 
-    y = 800
+    width, height = A4
+    y = height - 40
 
-    # عنوان الشركة
+    # ============================
+    # 🏢 هيدر بسيط
+    # ============================
+    c.setFont("Helvetica-Bold", 18)
+    c.drawRightString(width - 40, y, company_name)
+    y -= 10
+
+    c.setLineWidth(0.5)
+    c.line(40, y, width - 40, y)
+    y -= 40
+
+    # ============================
+    # 📄 عنوان الفاتورة
+    # ============================
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y, company_name)
-    y -= 40
+    c.drawRightString(width - 40, y, "فاتورة")
+    y -= 30
 
-    # بيانات الفاتورة
+    # ============================
+    # 📌 بيانات الفاتورة
+    # ============================
     c.setFont("Helvetica", 12)
-    c.drawString(50, y, f"Invoice Number: {invoice_number}")
-    y -= 20
-    c.drawString(50, y, f"Client: {booking['client_name']}")
-    y -= 20
-    c.drawString(50, y, f"Nights: {nights}")
-    y -= 20
-    c.drawString(50, y, f"Base Price: {base_price} SAR")
-    y -= 20
-    c.drawString(50, y, f"Discount: {discount_value} SAR")
-    y -= 20
-    c.drawString(50, y, f"VAT ({VAT_percent}%): {vat_value} SAR")
-    y -= 20
-    c.drawString(50, y, f"Deposit: {deposit} SAR")
-    y -= 20
-    c.drawString(50, y, f"Total: {total} SAR")
+    info = [
+        f"رقم الفاتورة: {invoice_number}",
+        f"العميل: {booking['client_name']}",
+        f"رقم الوحدة: {booking['unit_no']}",
+        f"عدد الليالي: {nights}",
+        f"تاريخ الدخول: {booking['check_in']}",
+        f"تاريخ الخروج: {booking['check_out']}",
+    ]
+
+    for line in info:
+        c.drawRightString(width - 40, y, line)
+        y -= 20
+
+    y -= 10
+    c.line(40, y, width - 40, y)
+    y -= 30
+
+    # ============================
+    # 💰 جدول الأسعار
+    # ============================
+    c.setFont("Helvetica-Bold", 13)
+    c.drawRightString(width - 40, y, "تفاصيل المبلغ")
+    y -= 25
+
+    c.setFont("Helvetica", 12)
+    rows = [
+        ("سعر الأساس", f"{base_price} ريال"),
+        ("الخصم", f"{discount_value} ريال"),
+        (f"الضريبة ({VAT_percent}%)", f"{vat_value} ريال"),
+        ("التأمين", f"{deposit} ريال"),
+    ]
+
+    for title, value in rows:
+        c.drawRightString(width - 40, y, value)
+        c.drawRightString(width - 200, y, title)
+        y -= 20
+
+    c.line(40, y, width - 40, y)
+    y -= 30
+
+    # ============================
+    # 💵 الإجمالي النهائي
+    # ============================
+    c.setFont("Helvetica-Bold", 14)
+    c.drawRightString(width - 40, y, f"الإجمالي النهائي: {total} ريال")
     y -= 40
 
-    # QR Code (FIXED)
+    # ============================
+    # 🔳 QR Code
+    # ============================
     qr_image = ImageReader(BytesIO(qr_bytes))
-    c.drawImage(qr_image, 50, y - 150, width=120, height=120)
+    c.drawImage(qr_image, width - 160, y - 120, width=120, height=120)
 
-    c.showPage()
+    y -= 160
+
+    # ============================
+    # 📞 فوتر بسيط
+    # ============================
+    c.setFont("Helvetica", 10)
+    c.setFillGray(0.4)
+    c.drawCentredString(width / 2, 40, f"للتواصل: {whatsapp}")
+
     c.save()
-
     pdf = buffer.getvalue()
     buffer.close()
     return pdf
