@@ -4,6 +4,7 @@ import streamlit as st
 if "logged_in" not in st.session_state or not st.session_state.logged_in:
     st.error("يجب تسجيل الدخول للوصول إلى هذه الصفحة.")
     st.stop()
+
 from supabase import create_client
 from datetime import date
 
@@ -15,7 +16,6 @@ key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
 st.set_page_config(page_title="إدارة المصاريف", page_icon="💸", layout="wide")
-
 st.markdown("<h2 style='text-align:right;'>💸 إدارة المصاريف</h2>", unsafe_allow_html=True)
 
 # ============================
@@ -29,7 +29,9 @@ def ensure_expenses_table():
         amount numeric not null,
         notes text,
         date_added date default now(),
-        added_by text
+        added_by text,
+        unit_no text,
+        booking_id integer
     );
     """
     try:
@@ -38,6 +40,14 @@ def ensure_expenses_table():
         pass
 
 ensure_expenses_table()
+
+# تحميل الوحدات
+units = supabase.table("units_names").select("*").execute().data
+unit_list = [u["unit_no"] for u in units]
+
+# تحميل الحجوزات
+bookings = supabase.table("bookings").select("*").order("id", desc=True).execute().data
+booking_list = {f"{b['id']} - {b['client_name']}": b["id"] for b in bookings}
 
 # ============================
 # 📌 إضافة مصروف جديد
@@ -54,14 +64,30 @@ with col2:
     date_added = st.date_input("تاريخ الإضافة", date.today())
     notes = st.text_area("ملاحظات")
 
+# اختيار نوع الربط
+st.write("### 🔗 ربط المصروف")
+link_type = st.radio("اختر نوع الربط", ["مصروف على الحجز", "مصروف على الوحدة"])
+
+selected_unit = None
+selected_booking = None
+
+if link_type == "مصروف على الوحدة":
+    selected_unit = st.selectbox("اختر الوحدة", unit_list)
+
+elif link_type == "مصروف على الحجز":
+    selected_booking = st.selectbox("اختر الحجز", list(booking_list.keys()))
+
 if st.button("💾 حفظ المصروف"):
     data = {
         "expense_type": expense_type,
         "amount": amount,
         "notes": notes,
         "date_added": str(date_added),
-        "added_by": st.session_state.get("username", "admin")
+        "added_by": st.session_state.get("username", "admin"),
+        "unit_no": selected_unit,
+        "booking_id": booking_list.get(selected_booking) if selected_booking else None
     }
+
     supabase.table("expenses").insert(data).execute()
     st.success("تم حفظ المصروف بنجاح.")
     st.experimental_rerun()
@@ -79,7 +105,15 @@ if not expenses:
     st.stop()
 
 for exp in expenses:
-    with st.expander(f"💸 مصروف رقم {exp['id']} — {exp['expense_type']} — {exp['amount']} ريال"):
+    title = f"💸 مصروف رقم {exp['id']} — {exp['expense_type']} — {exp['amount']} ريال"
+
+    if exp.get("unit_no"):
+        title += f" — وحدة {exp['unit_no']}"
+
+    if exp.get("booking_id"):
+        title += f" — حجز {exp['booking_id']}"
+
+    with st.expander(title):
 
         colA, colB = st.columns(2)
 
@@ -91,6 +125,24 @@ for exp in expenses:
             new_date = st.date_input("التاريخ", date.fromisoformat(exp["date_added"]), key=f"date_{exp['id']}")
             new_notes = st.text_area("ملاحظات", exp.get("notes", ""), key=f"notes_{exp['id']}")
 
+        # تعديل الربط
+        st.write("### 🔗 تعديل الربط")
+
+        new_link_type = st.radio(
+            "نوع الربط",
+            ["مصروف على الحجز", "مصروف على الوحدة"],
+            key=f"link_{exp['id']}",
+            index=0 if exp.get("booking_id") else 1
+        )
+
+        new_unit = None
+        new_booking = None
+
+        if new_link_type == "مصروف على الوحدة":
+            new_unit = st.selectbox("اختر الوحدة", unit_list, key=f"unit_{exp['id']}")
+        else:
+            new_booking = st.selectbox("اختر الحجز", list(booking_list.keys()), key=f"booking_{exp['id']}")
+
         # ============================
         # ✏️ تعديل المصروف
         # ============================
@@ -99,7 +151,9 @@ for exp in expenses:
                 "expense_type": new_type,
                 "amount": new_amount,
                 "date_added": str(new_date),
-                "notes": new_notes
+                "notes": new_notes,
+                "unit_no": new_unit,
+                "booking_id": booking_list.get(new_booking) if new_booking else None
             }).eq("id", exp["id"]).execute()
 
             st.success("تم تحديث المصروف بنجاح.")
