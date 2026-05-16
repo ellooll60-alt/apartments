@@ -3,6 +3,9 @@ from utils.supabase_client import supabase
 from utils.auth import check_auth
 import pandas as pd
 from datetime import datetime
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+import tempfile
 
 check_auth()
 
@@ -96,3 +99,86 @@ if compensations:
     st.dataframe(df_comp)
 else:
     st.info("لا توجد تعويضات مسجلة.")
+
+# -----------------------------
+# 🖨 إنشاء PDF
+# -----------------------------
+def generate_pdf(total_income_bookings, total_compensations, total_expenses, net_profit,
+                 daily_income, daily_comp_total, daily_exp_total, daily_net, compensations):
+
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    c = canvas.Canvas(temp_file.name, pagesize=A4)
+
+    width, height = A4
+    y = height - 30
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(30, y, "التقرير المالي")
+    y -= 30
+
+    c.setFont("Helvetica", 12)
+    c.drawString(30, y, f"💰 دخل الحجوزات: {total_income_bookings} ريال")
+    y -= 20
+    c.drawString(30, y, f"🌿 التعويضات: {total_compensations} ريال")
+    y -= 20
+    c.drawString(30, y, f"📉 المصاريف: {total_expenses} ريال")
+    y -= 20
+    c.drawString(30, y, f"📈 صافي الربح: {net_profit} ريال")
+    y -= 40
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(30, y, "📅 تقرير اليوم")
+    y -= 30
+
+    c.setFont("Helvetica", 12)
+    c.drawString(30, y, f"دخل اليوم: {daily_income} ريال")
+    y -= 20
+    c.drawString(30, y, f"تعويضات اليوم: {daily_comp_total} ريال")
+    y -= 20
+    c.drawString(30, y, f"مصاريف اليوم: {daily_exp_total} ريال")
+    y -= 20
+    c.drawString(30, y, f"صافي اليوم: {daily_net} ريال")
+    y -= 40
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(30, y, "📋 جدول التعويضات")
+    y -= 30
+
+    c.setFont("Helvetica", 10)
+    for comp in compensations:
+        if y < 50:
+            c.showPage()
+            y = height - 50
+            c.setFont("Helvetica", 10)
+
+        c.drawString(30, y, f"#{comp['id']} | حجز {comp['booking_id']} | {comp['reason']} | {comp['amount']} ريال | {comp['date']}")
+        y -= 18
+
+    c.save()
+    return temp_file.name
+
+# -----------------------------
+# 📄 زر تصدير PDF
+# -----------------------------
+st.subheader("📄 تصدير التقرير")
+
+if st.button("📄 تصدير التقرير PDF"):
+    pdf_path = generate_pdf(
+        total_income_bookings,
+        total_compensations,
+        total_expenses,
+        net_profit,
+        daily_income,
+        daily_comp_total,
+        daily_exp_total,
+        daily_net,
+        compensations
+    )
+
+    with open(pdf_path, "rb") as f:
+        st.download_button(
+            label="⬇ تحميل التقرير PDF",
+            data=f,
+            file_name="financial_report.pdf",
+            mime="application/pdf"
+        )
