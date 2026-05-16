@@ -1,11 +1,18 @@
 import streamlit as st
-from utils.supabase_client import supabase
 from utils.auth import check_auth
 import pandas as pd
 from datetime import datetime
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 import tempfile
+from supabase import create_client
+
+# -----------------------------
+# 🔗 الاتصال بـ Supabase
+# -----------------------------
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
+supabase = create_client(url, key)
 
 check_auth()
 
@@ -51,18 +58,12 @@ net_profit = total_income - total_expenses
 # -----------------------------
 # 🌐 الدخل حسب المنصة
 # -----------------------------
-if "platform" in df_bookings.columns:
-    income_per_platform = df_bookings.groupby("platform")["total_price"].sum().reset_index()
-else:
-    income_per_platform = pd.DataFrame(columns=["platform", "total_price"])
+income_per_platform = df_bookings.groupby("platform")["total_price"].sum().reset_index()
 
 # -----------------------------
 # 🏠 الدخل حسب الوحدة
 # -----------------------------
-if "unit_no" in df_bookings.columns:
-    income_per_unit = df_bookings.groupby("unit_no")["total_price"].sum().reset_index()
-else:
-    income_per_unit = pd.DataFrame(columns=["unit_no", "total_price"])
+income_per_unit = df_bookings.groupby("unit_no")["total_price"].sum().reset_index()
 
 # -----------------------------
 # 💸 مصاريف الوحدة
@@ -73,7 +74,7 @@ else:
     expenses_per_unit = pd.DataFrame(columns=["unit_no", "amount"])
 
 # -----------------------------
-# 🧮 صافي الربح لكل وحدة
+# 📈 صافي الربح لكل وحدة
 # -----------------------------
 unit_profit = pd.merge(income_per_unit, expenses_per_unit, on="unit_no", how="left")
 unit_profit["amount"] = unit_profit["amount"].fillna(0)
