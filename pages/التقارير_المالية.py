@@ -1,116 +1,98 @@
-import sys, os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import streamlit as st
-from supabase import create_client
+from utils.supabase_client import supabase
+from utils.auth import check_auth
 import pandas as pd
-from datetime import date, datetime
+from datetime import datetime
 
-from utils.auth_utils import require_role
+check_auth()
 
-# ============================
-# 🔒 حماية الصفحة
-# ============================
-require_role(["admin", "manager"])
+st.title("📊 التقارير المالية")
 
-# ============================
-# ⚙️ إعداد الصفحة
-# ============================
-st.set_page_config(page_title="التقارير المالية", page_icon="📊", layout="wide")
-st.markdown("<h2 style='text-align:right;'>📊 التقارير المالية</h2>", unsafe_allow_html=True)
+# -----------------------------
+# 🔧 تحميل البيانات
+# -----------------------------
+def get_bookings():
+    return supabase.table("bookings").select("*").execute().data
 
-# ============================
-# 📡 الاتصال بـ Supabase
-# ============================
-url = st.secrets["SUPABASE_URL"]
-key = st.secrets["SUPABASE_KEY"]
-supabase = create_client(url, key)
+def get_expenses():
+    return supabase.table("expenses").select("*").execute().data
 
-# ============================
-# 📌 تحميل البيانات
-# ============================
-bookings = supabase.table("bookings").select("*").execute().data
-expenses = supabase.table("expenses").select("*").execute().data if "expenses" in st.secrets else []
-compensations = supabase.table("compensations").select("*").execute().data
+def get_compensations():
+    return supabase.table("compensations").select("*").execute().data
 
-# ============================
-# 📊 الحسابات الأساسية
-# ============================
-total_income = sum(float(b["price"]) for b in bookings)
-total_expenses = sum(float(e["amount"]) for e in expenses) if expenses else 0
+bookings = get_bookings()
+expenses = get_expenses()
+compensations = get_compensations()
+
+# -----------------------------
+# 🧮 حساب الدخل
+# -----------------------------
+total_income_bookings = sum(float(b["total_price"]) for b in bookings)
+
+# ✔ التعويضات تُحسب كدخل
 total_compensations = sum(float(c["amount"]) for c in compensations)
 
-net_profit = total_income - total_expenses - total_compensations
+# ✔ إجمالي الدخل = دخل الحجوزات + التعويضات
+total_income = total_income_bookings + total_compensations
 
-# ============================
+# -----------------------------
+# 🧮 حساب المصاريف
+# -----------------------------
+total_expenses = sum(float(e["amount"]) for e in expenses)
+
+# -----------------------------
+# 🧮 صافي الربح
+# -----------------------------
+net_profit = total_income - total_expenses
+
+# -----------------------------
 # 📌 عرض الملخص
-# ============================
+# -----------------------------
+st.subheader("📌 الملخص المالي")
+
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric("💰 إجمالي الدخل", f"{total_income} ريال")
-col2.metric("📉 المصاريف", f"{total_expenses} ريال")
-col3.metric("⚠️ التعويضات", f"{total_compensations} ريال")
-col4.metric("📊 صافي الربح", f"{net_profit} ريال")
+col1.metric("💰 دخل الحجوزات", f"{total_income_bookings} ريال")
+col2.metric("🌿 التعويضات", f"{total_compensations} ريال")
+col3.metric("📉 المصاريف", f"{total_expenses} ريال")
+col4.metric("📈 صافي الربح", f"{net_profit} ريال")
 
-# ============================
-# 📅 تقارير حسب التاريخ
-# ============================
-st.write("---")
+# -----------------------------
+# 📅 التقارير حسب التاريخ
+# -----------------------------
 st.subheader("📅 التقارير حسب التاريخ")
 
-start_date = st.date_input("من تاريخ", date.today().replace(day=1))
-end_date = st.date_input("إلى تاريخ", date.today())
+selected_date = st.date_input("اختر التاريخ", datetime.today())
+selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-filtered_bookings = [
-    b for b in bookings
-    if start_date <= date.fromisoformat(b["check_in"]) <= end_date
-]
+# دخل الحجوزات في اليوم
+daily_bookings = [b for b in bookings if b["date_added"].startswith(selected_date_str)]
+daily_income = sum(float(b["total_price"]) for b in daily_bookings)
 
-filtered_comp = [
-    c for c in compensations
-    if start_date <= date.fromisoformat(c["date_added"]) <= end_date
-]
+# ✔ تعويضات اليوم
+daily_comp = [c for c in compensations if c["date"].startswith(selected_date_str)]
+daily_comp_total = sum(float(c["amount"]) for c in daily_comp)
 
-filtered_expenses = [
-    e for e in expenses
-    if start_date <= date.fromisoformat(e["date_added"]) <= end_date
-] if expenses else []
+# مصاريف اليوم
+daily_exp = [e for e in expenses if e["date"].startswith(selected_date_str)]
+daily_exp_total = sum(float(e["amount"]) for e in daily_exp)
 
-st.metric("💰 دخل الفترة", f"{sum(float(b['price']) for b in filtered_bookings)} ريال")
-st.metric("⚠️ تعويضات الفترة", f"{sum(float(c['amount']) for c in filtered_comp)} ريال")
-st.metric("📉 مصاريف الفترة", f"{sum(float(e['amount']) for e in filtered_expenses)} ريال")
+daily_net = (daily_income + daily_comp_total) - daily_exp_total
 
-# ============================
-# 📋 جدول الحجوزات
-# ============================
-st.write("---")
-st.subheader("📋 الحجوزات")
+colA, colB, colC, colD = st.columns(4)
+colA.metric("دخل اليوم", f"{daily_income} ريال")
+colB.metric("تعويضات اليوم", f"{daily_comp_total} ريال")
+colC.metric("مصاريف اليوم", f"{daily_exp_total} ريال")
+colD.metric("صافي اليوم", f"{daily_net} ريال")
 
-if filtered_bookings:
-    st.dataframe(pd.DataFrame(filtered_bookings))
-else:
-    st.info("لا توجد حجوزات في هذه الفترة.")
-
-# ============================
-# ⚠️ جدول التعويضات
-# ============================
-st.write("---")
-st.subheader("⚠️ التعويضات")
+# -----------------------------
+# 📋 جدول التعويضات داخل التقارير
+# -----------------------------
+st.subheader("📋 تقرير التعويضات")
 
 if compensations:
     df_comp = pd.DataFrame(compensations)
-    st.dataframe(df_comp[["id", "unit_no", "client_name", "damage_type", "amount", "date_added"]])
+    df_comp = df_comp[["id", "booking_id", "reason", "amount", "date"]]
+    st.dataframe(df_comp)
 else:
-    st.info("لا توجد تعويضات.")
-
-# ============================
-# 📉 جدول المصاريف
-# ============================
-st.write("---")
-st.subheader("📉 المصاريف")
-
-if expenses:
-    df_exp = pd.DataFrame(expenses)
-    st.dataframe(df_exp)
-else:
-    st.info("لا توجد مصاريف.")
+    st.info("لا توجد تعويضات مسجلة.")
